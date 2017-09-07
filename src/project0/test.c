@@ -14,7 +14,7 @@ int main(void) {
 
   hashtable* ht=NULL;
   int num_tests = 20;
-  assert(allocate(&ht, num_tests));
+  assert(allocate(&ht, num_tests) == 0);
 
   int seed = 1;
   srand(seed);
@@ -26,7 +26,7 @@ int main(void) {
   for (int i = 0; i < num_tests; i += 1) {
     keys[i] = rand();
     values[i] = rand();
-    assert(put(ht, keys[i], values[i]));
+    assert(put(ht, keys[i], values[i]) == 0);
     printf("\t(%d -> %d) \n", keys[i], values[i]);
   }
 
@@ -37,7 +37,7 @@ int main(void) {
   for (int i = 0; i < num_tests; i += 1) {
     int index = rand() % num_tests;
     keyType target_key = keys[index];
-    assert(get(ht, target_key, results, num_values, num_results));
+    assert(get(ht, target_key, results, num_values, num_results) == 0);
     if (results[0] != values[index]) {
       printf("Test failed with key %d. Got value %d. Expected value %d.\n", target_key, results[0], values[index]);
       return 1;
@@ -49,8 +49,8 @@ int main(void) {
 
   for (int i = 0; i < num_tests; i += 1) {
     keyType target_key = keys[i];
-    assert(erase(ht, target_key));
-    assert(get(ht, target_key, results, num_values, num_results));
+    assert(erase(ht, target_key) == 0);
+    assert(get(ht, target_key, results, num_values, num_results) == 0);
     if ((*num_results) != 0) {
       printf("Test failed with key %d. Expected it to be erased, but got %d matches.\n", target_key, *num_results);
       return 1;

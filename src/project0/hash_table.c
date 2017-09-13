@@ -12,7 +12,7 @@ int allocate(hashtable** ht, int size) {
 	}
 	(*ht)->size = size;
 
-	entry** entries = malloc(sizeof(entry) * size * 2);
+	entry** entries = malloc(sizeof(void*) * size * 2);
 	if (entries == NULL) {
 		return -1;
 	}
@@ -70,7 +70,6 @@ int get(hashtable* ht, keyType key, valType *values, int num_values, int* num_re
 	
 	while(currentEntry != NULL) {
 		if (currentEntry->type == key) { 
-			printf("%i, %i\n", key, currentEntry->val);
 			values[nResults] = currentEntry->val;
 			nResults++;
 			if (nResults > num_values) { 
@@ -79,15 +78,36 @@ int get(hashtable* ht, keyType key, valType *values, int num_values, int* num_re
 		}
 		currentEntry = currentEntry->next;
 	}
-	num_results = &nResults;
+
+	(*num_results) = nResults;
     return 0;
 }
 
 // This method erases all key-value pairs with a given key from the hash table.
 // It returns an error code, 0 for success and -1 otherwise (e.g., if the hashtable is not allocated).
 int erase(hashtable* ht, keyType key) {
-    (void) ht;
-    (void) key;
+	if (!ht) {
+		return -1;
+	}
+
+	int bucket = hash(key, ht->size);
+	entry** currentEntry = &ht->entries[bucket];
+	entry** prevEntry = NULL;
+
+	while (*currentEntry != NULL) {
+		if ((*currentEntry)->type == key) {
+			if (prevEntry != NULL) {
+				(*prevEntry)->next = (*currentEntry)->next;
+			}
+			entry* tmp = (*currentEntry)->next;
+			free(*currentEntry);
+			(*currentEntry) = tmp;
+		} else {
+			prevEntry = currentEntry;
+			*currentEntry = (*currentEntry)->next;
+		}
+	}
+	
     return 0;
 }
 

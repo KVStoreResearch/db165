@@ -88,30 +88,27 @@ int erase(hashtable* ht, keyType key) {
 	if (!ht) {
 		return -1;
 	}
-
 	int bucket = hash(key, ht->size);
-	entry* currentEntry = ht->entries[bucket];
 
-	int nFrees = 0;
-	while (currentEntry != NULL) {
-		if (currentEntry->type == key) {
-			if (currentEntry->next != NULL) {
-				entry* tmp = currentEntry->next;
-				currentEntry->type = tmp->type;
-				currentEntry->next = tmp->next;
-				nFrees++;
-				free(tmp);
-				tmp = NULL;
-			} else {
-				free(currentEntry);
-				currentEntry = NULL;
-				nFrees++;
-				break;
-			}
-		} 
-		currentEntry = currentEntry->next;
+	if (ht->entries[bucket]->type == key) {
+		entry* tmp = ht->entries[bucket];
+		ht->entries[bucket] = ht->entries[bucket]->next;
+		free(tmp);
+		return 0;
 	}
-	printf("nFrees: %i, for key: %i\n", nFrees, key);
+
+	entry* prevEntry = ht->entries[bucket];
+
+	while (prevEntry->next != NULL && prevEntry->next->type != key) {
+		prevEntry = prevEntry->next;
+	}
+
+	if (prevEntry->next) {
+		entry* tmp = prevEntry->next;
+		prevEntry->next = prevEntry->next->next;
+		free(tmp);
+		return 0;
+	}
 	
     return 0;
 }

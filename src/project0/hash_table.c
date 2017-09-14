@@ -14,11 +14,10 @@ int allocate(hashtable** ht, int size) {
 
 	entry** entries = malloc(sizeof(void*) * size * 2);
 	if (entries == NULL) {
-		return -1;
+		return 0;
 	}
-
-
 	(*ht)->entries = entries;
+
 	for (int i = 0; i < size * 2; i++) {
 		(*ht)->entries[i] = NULL;
 	}
@@ -91,22 +90,28 @@ int erase(hashtable* ht, keyType key) {
 	}
 
 	int bucket = hash(key, ht->size);
-	entry** currentEntry = &ht->entries[bucket];
-	entry** prevEntry = NULL;
+	entry* currentEntry = ht->entries[bucket];
 
-	while (*currentEntry != NULL) {
-		if ((*currentEntry)->type == key) {
-			if (prevEntry != NULL) {
-				(*prevEntry)->next = (*currentEntry)->next;
+	int nFrees = 0;
+	while (currentEntry != NULL) {
+		if (currentEntry->type == key) {
+			if (currentEntry->next != NULL) {
+				entry* tmp = currentEntry->next;
+				currentEntry->type = tmp->type;
+				currentEntry->next = tmp->next;
+				nFrees++;
+				free(tmp);
+				tmp = NULL;
+			} else {
+				free(currentEntry);
+				currentEntry = NULL;
+				nFrees++;
+				break;
 			}
-			entry* tmp = (*currentEntry)->next;
-			free(*currentEntry);
-			(*currentEntry) = tmp;
-		} else {
-			prevEntry = currentEntry;
-			*currentEntry = (*currentEntry)->next;
-		}
+		} 
+		currentEntry = currentEntry->next;
 	}
+	printf("nFrees: %i, for key: %i\n", nFrees, key);
 	
     return 0;
 }
@@ -114,9 +119,18 @@ int erase(hashtable* ht, keyType key) {
 // This method frees all memory occupied by the hash table.
 // It returns an error code, 0 for success and -1 otherwise.
 int deallocate(hashtable* ht) {
-    // This line tells the compiler that we know we haven't used the variable
-    // yet so don't issue a warning. You should remove this line once you use
-    // the parameter.
-    (void) ht;
+	entry** currentEntry;
+	int nFrees = 0;
+	for (int i = 0; i < ht->size; i++) {
+		currentEntry = &ht->entries[i];
+		while (*currentEntry != NULL) {
+			entry* tmp = (*currentEntry)->next;
+			free(*currentEntry);
+			*currentEntry = tmp;
+			nFrees++;
+		}
+	}
+	free(ht->entries);
+	free(ht);
     return 0;
 }

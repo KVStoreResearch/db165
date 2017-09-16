@@ -7,21 +7,16 @@
 // This method returns an error code, 0 for success and -1 otherwise (e.g., if the parameter passed to the method is not null, if malloc fails, etc).
 int allocate(hashtable** ht, int size) {
 	*ht = (hashtable*) malloc(sizeof(hashtable));
-	if (ht == NULL) {
-		return -1;
-	}
+	if (ht == NULL) return -1;
 	(*ht)->size = size;
 
-	entry** entries = malloc(sizeof(void*) * size * 2);
-	if (entries == NULL) {
-		return 0;
-	}
+	entry** entries = malloc(sizeof(void*) * size);
+	if (entries == NULL) return -1;
 	(*ht)->entries = entries;
 
-	for (int i = 0; i < size * 2; i++) {
+	for (int i = 0; i < size; i++) { //initialize hashtable bucket pointers to null
 		(*ht)->entries[i] = NULL;
 	}
-
     return 0;
 }
 
@@ -34,6 +29,8 @@ int hash(keyType key, int size) {
 // This method inserts a key-value pair into the hash table.
 // It returns an error code, 0 for success and -1 otherwise (e.g., if malloc is called and fails).
 int put(hashtable* ht, keyType key, valType value) {
+	if (!ht) return -1;
+
 	entry* newEntry = malloc(sizeof(entry));
 	if (newEntry == NULL) return -1;
 	newEntry->type = key;
@@ -41,14 +38,8 @@ int put(hashtable* ht, keyType key, valType value) {
 	newEntry->next = NULL;
 	
 	int bucket = hash(key, ht->size);
-
-	if (ht->entries[bucket] == NULL) {
-		ht->entries[bucket] = newEntry;
-	} else {
-		newEntry->next = ht->entries[bucket];
-		ht->entries[bucket] = newEntry;
-	}
-
+	newEntry->next = ht->entries[bucket];
+	ht->entries[bucket] = newEntry;
     return 0;
 }
 
@@ -66,7 +57,7 @@ int get(hashtable* ht, keyType key, valType *values, int num_values, int* num_re
 	int bucket = hash(key, ht->size);
 	int nResults = 0;
 	entry* currentEntry = ht->entries[bucket];
-	
+
 	while(currentEntry != NULL) {
 		if (currentEntry->type == key) { 
 			values[nResults] = currentEntry->val;
@@ -77,39 +68,29 @@ int get(hashtable* ht, keyType key, valType *values, int num_values, int* num_re
 		}
 		currentEntry = currentEntry->next;
 	}
-
-	(*num_results) = nResults;
+	*num_results = nResults;
     return 0;
 }
 
 // This method erases all key-value pairs with a given key from the hash table.
 // It returns an error code, 0 for success and -1 otherwise (e.g., if the hashtable is not allocated).
 int erase(hashtable* ht, keyType key) {
-	if (!ht) {
-		return -1;
-	}
-	int bucket = hash(key, ht->size);
+	if (!ht) return -1;
 
-	if (ht->entries[bucket]->type == key) {
+	int bucket = hash(key, ht->size);
+	if (ht->entries[bucket]->type == key) { 
 		entry* tmp = ht->entries[bucket];
 		ht->entries[bucket] = ht->entries[bucket]->next;
 		free(tmp);
-		return 0;
+	} else { 
+		entry* prevEntry = ht->entries[bucket];
+		while (prevEntry->next != NULL && prevEntry->next->type != key) prevEntry = prevEntry->next;
+		if (prevEntry->next) {
+			entry* tmp = prevEntry->next;
+			prevEntry->next = prevEntry->next->next;
+			free(tmp);
+		}
 	}
-
-	entry* prevEntry = ht->entries[bucket];
-
-	while (prevEntry->next != NULL && prevEntry->next->type != key) {
-		prevEntry = prevEntry->next;
-	}
-
-	if (prevEntry->next) {
-		entry* tmp = prevEntry->next;
-		prevEntry->next = prevEntry->next->next;
-		free(tmp);
-		return 0;
-	}
-	
     return 0;
 }
 

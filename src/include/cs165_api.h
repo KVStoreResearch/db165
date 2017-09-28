@@ -33,6 +33,10 @@ SOFTWARE.
 #define MAX_SIZE_NAME 64
 #define HANDLE_MAX_SIZE 64
 
+// MILESTONE 1: Only support single table queries
+// TODO support multiple tables within a db!
+#define MAX_NUM_TABLES 1
+
 /**
  * EXTRA
  * DataType
@@ -243,6 +247,10 @@ Status db_startup();
 Status sync_db(Db* db);
 
 Status add_db(const char* db_name, bool new);
+
+Status create_db(const char* db_name);
+
+Status load_db(const char* db_name);
 
 Table* create_table(Db* db, const char* name, size_t num_columns, Status *status);
 

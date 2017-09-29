@@ -33,6 +33,62 @@ char* next_token(char** tokenizer, message_status* status) {
 }
 
 /**
+ * This method takes in a string representing the arguments to create a column.
+ * It parses those arguments, checks that they are valid, and creates a column.
+ **/
+
+message_status parse_create_col(char* create_arguments) {
+    message_status status = OK_DONE;
+    char** create_arguments_index = &create_arguments;
+    char* col_name = next_token(create_arguments_index, &status);
+    char* db_and_table_name = next_token(create_arguments_index, &status);
+
+    // not enough arguments
+    if (status == INCORRECT_FORMAT) {
+        return status;
+    }
+
+    // Get the table name free of quotation marks
+    col_name = trim_quotes(col_name);
+
+    // read and chop off last char, which should be a ')'
+    int last_char = strlen(db_and_table_name) - 1;
+    if (db_and_table_name[last_char] != ')') {
+        return INCORRECT_FORMAT;
+    }
+    // replace the ')' with a null terminating character. 
+	db_and_table_name[last_char] = '\0';
+
+	// Split db_and_table_name
+	char* db_name = strsep(&db_and_table_name, ".");
+	char* table_name = strsep(&db_and_table_name, ".");
+
+	// Find table to pass to create_col
+	Table* current_table = current_db->tables;
+	while (current_table != NULL && strcmp(current_table->name, table_name) != 0) current_table++;
+	if (!current_table) {
+		return INCORRECT_FORMAT; // could not find the table specified
+	}
+
+    // check that the database argument is the current active database
+    if (strcmp(current_db->name, db_name) != 0) {
+        cs165_log(stdout, "query unsupported. Bad db name");
+        return QUERY_UNSUPPORTED;
+    }
+
+    Status create_status;
+    create_column(col_name, current_table, false, &create_status);
+
+    if (create_status.code != OK) {
+        cs165_log(stdout, "adding a column failed.");
+        return EXECUTION_ERROR;
+    }
+
+    return status;
+}
+
+
+/**
  * This method takes in a string representing the arguments to create a table.
  * It parses those arguments, checks that they are valid, and creates a table.
  **/
@@ -139,6 +195,8 @@ message_status parse_create(char* create_arguments) {
                 mes_status = parse_create_db(tokenizer_copy);
             } else if (strcmp(token, "tbl") == 0) {
                 mes_status = parse_create_tbl(tokenizer_copy);
+			} else if (strcmp(token, "col") == 0) {
+				mes_status = parse_create_col(tokenizer_copy);
             } else {
                 mes_status = UNKNOWN_COMMAND;
             }

@@ -1,8 +1,3 @@
-
-
-/* BREAK APART THIS API (TODO MYSELF) */
-/* PLEASE UPPERCASE ALL THE STUCTS */
-
 /*
 Copyright (c) 2015 Harvard University - Data Systems Laboratory (DASLab)
 Permission is hereby granted, free of charge, to any person obtaining a copy of
@@ -71,16 +66,16 @@ typedef struct Column {
  * We do not require you to dynamically manage the size of your tables,
  * although you are free to append to the struct if you would like to (i.e.,
  * include a size_t table_size).
- * name, the name associated with the table. table names must be unique
+ * - name: the name associated with the table. table names must be unique
  *     within a database, but tables from different databases can have the same
  *     name.
- * - col_count, the number of columns in the table
- * - col,umns this is the pointer to an array of columns contained in the table.
- * - table_length, the size of the columns in the table.
+ * - col_count: the number of columns in the table
+ * - columns: this is the pointer to an array of columns contained in the table.
+ * - table_length: the size of the columns in the table.
  **/
 
 typedef struct Table {
-    char name [MAX_SIZE_NAME];
+    char name[MAX_SIZE_NAME];
     Column *columns;
     size_t col_count;
     size_t table_length;
@@ -264,4 +259,3 @@ void db_operator_free(DbOperator* query);
 
 
 #endif /* CS165_H */
-

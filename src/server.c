@@ -151,6 +151,17 @@ int setup_server() {
     return server_socket;
 }
 
+/*
+ * shutdown_server()
+ * Shuts down the server, calls shutdown_database to save data to disk.
+ * Returns the status of the operation; OK on success, ERROR on failure.
+ */
+
+Status shutdown_server() {
+	Status ret_status = shutdown_database(current_db);
+	return ret_status;
+}
+
 // Currently this main will setup the socket and accept a single client.
 // After handling the client, it will exit.
 // You will need to extend this to handle multiple concurrent clients
@@ -175,5 +186,7 @@ int main(void)
 
     handle_client(client_socket);
 
+	// TODO address later, just for testing sync_db()
+	shutdown_server();
     return 0;
 }

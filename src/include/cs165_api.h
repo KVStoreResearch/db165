@@ -30,7 +30,7 @@ SOFTWARE.
 
 // MILESTONE 1: Only support single table queries
 // TODO support multiple tables within a db!
-#define MAX_NUM_TABLES 1
+#define MAX_NUM_TABLES 2
 
 /**
  * EXTRA
@@ -78,6 +78,7 @@ typedef struct Table {
     char name[MAX_SIZE_NAME];
     Column *columns;
     size_t col_count;
+	size_t cols_used;
     size_t table_length;
 } Table;
 
@@ -241,11 +242,9 @@ Status db_startup();
  **/
 Status sync_db(Db* db);
 
-Status add_db(const char* db_name, bool new);
-
 Status create_db(const char* db_name);
 
-Status load_db(const char* db_name);
+Status load_db(const char* db_filename);
 
 Table* create_table(Db* db, const char* name, size_t num_columns, Status *status);
 

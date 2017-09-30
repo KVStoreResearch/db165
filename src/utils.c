@@ -80,6 +80,14 @@ char* trim_quotes(char *str) {
     str[current] = '\0';
     return str;
 }
+
+char* construct_filename(const char* db_name) {
+	char* result = (char*) malloc(sizeof(char) * (strlen(db_name) + 4));
+	strcpy(result, db_name);
+	strcat(result, ".txt");
+	return result;
+}
+
 /* The following three functions will show output on the terminal
  * based off whether the corresponding level is defined.
  * To see log output, define LOG.

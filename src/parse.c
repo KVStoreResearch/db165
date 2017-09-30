@@ -72,7 +72,7 @@ message_status parse_create_col(char* create_arguments) {
 
     // check that the database argument is the current active database
     if (strcmp(current_db->name, db_name) != 0) {
-        cs165_log(stdout, "query unsupported. Bad db name");
+        cs165_log(stdout, "query unsupported. Bad db name\n");
         return QUERY_UNSUPPORTED;
     }
 
@@ -80,7 +80,7 @@ message_status parse_create_col(char* create_arguments) {
     create_column(col_name, current_table, false, &create_status);
 
     if (create_status.code != OK) {
-        cs165_log(stdout, "adding a column failed.");
+        cs165_log(stdout, "adding a column failed.\n");
         return EXECUTION_ERROR;
     }
 
@@ -164,7 +164,7 @@ message_status parse_create_db(char* create_arguments) {
         if (token != NULL) {
             return INCORRECT_FORMAT;
         }
-        if (add_db(db_name, true).code == OK) {
+        if (create_db(db_name).code == OK) {
             return OK_DONE;
         } else {
             return EXECUTION_ERROR;
@@ -207,6 +207,40 @@ message_status parse_create(char* create_arguments) {
     free(to_free);
     return mes_status;
 }
+
+/**
+ * parse_load parses a load statment and passes necessary arguments off to the next function
+ */
+
+message_status parse_load(char* load_arguments) {
+	message_status mes_status;
+
+    if (strncmp(load_arguments, "(", 1) == 0) {
+        // token stores first argument. Tokenizer copy now points to just past first ","
+        char* token = next_token(&load_arguments, &mes_status);
+		token++; // get rid of leading (
+		int last_char = strlen(token) - 1;
+        if (mes_status == INCORRECT_FORMAT || token[last_char] != ')') {
+            return mes_status;
+        } else {
+			token[last_char] = '\0';
+			char* cleaned_filename = trim_quotes(token);
+			char* db_name = strsep(&cleaned_filename, ".");	
+
+			Status load_status = load_db(db_name);
+			if (load_status.code == ERROR) {
+				mes_status = UNKNOWN_COMMAND;
+			} else {
+				mes_status = OK;
+			}
+        }
+    } else {
+        mes_status = UNKNOWN_COMMAND;
+    }
+	
+	return mes_status;
+}
+
 
 /**
  * parse_insert reads in the arguments for a create statement and 
@@ -291,7 +325,11 @@ DbOperator* parse_command(char* query_command, message* send_message, int client
         send_message->status = parse_create(query_command);
         dbo = malloc(sizeof(DbOperator));
         dbo->type = CREATE;
-    } else if (strncmp(query_command, "relational_insert", 17) == 0) {
+    } else if (strncmp(query_command, "load", 4) == 0) {
+		query_command += 4;
+		send_message->status = parse_load(query_command);
+	}
+	else if (strncmp(query_command, "relational_insert", 17) == 0) {
         query_command += 17;
         dbo = parse_insert(query_command, send_message);
     }

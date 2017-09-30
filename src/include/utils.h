@@ -57,4 +57,8 @@ void log_err(const char *format, ...);
 // Usage: log_info("Command received: %s", command_string);
 void log_info(const char *format, ...);
 
+/*
+ * constructs filename for given database name
+ */
+char* construct_filename(const char* db_name);
 #endif /* __UTILS_H__ */

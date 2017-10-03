@@ -13,6 +13,8 @@
 #define LOG_ERR 1
 #define LOG_INFO 1
 
+#define DATA_PATH "./data/"
+
 /* removes newline characters from the input string.
  * Shifts characters over and shortens the length of
  * the string by the number of newline characters.
@@ -82,9 +84,10 @@ char* trim_quotes(char *str) {
 }
 
 char* construct_filename(const char* db_name) {
-	char* result = (char*) malloc(sizeof(char) * (strlen(db_name) + 4));
-	strcpy(result, db_name);
-	strcat(result, ".txt");
+	char* result = (char*) malloc(sizeof(char) * (strlen(db_name) + 9));
+	strcpy(result, DATA_PATH);
+	strcat(result, db_name);
+	strcat(result, ".bin");
 	return result;
 }
 

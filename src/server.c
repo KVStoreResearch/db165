@@ -30,15 +30,6 @@
 
 #define DEFAULT_QUERY_BUFFER_SIZE 1024
 
-/** execute_DbOperator takes as input the DbOperator and executes the query.
- * This should be replaced in your implementation (and its implementation possibly moved to a different file).
- * It is currently here so that you can verify that your server and client can send messages.
- **/
-char* execute_DbOperator(DbOperator* query) {
-    free(query);
-    return "165";
-}
-
 /**
  * handle_client(client_socket)
  * This is the execution routine after a client has connected.
@@ -81,7 +72,7 @@ void handle_client(int client_socket) {
             DbOperator* query = parse_command(recv_message.payload, &send_message, client_socket, client_context);
 
             // 2. Handle request
-            char* result = execute_DbOperator(query);
+            char* result = execute_db_operator(query);
 
             send_message.length = strlen(result);
             char send_buffer[send_message.length + 1];
@@ -151,17 +142,6 @@ int setup_server() {
     return server_socket;
 }
 
-/*
- * shutdown_server()
- * Shuts down the server, calls shutdown_database to save data to disk.
- * Returns the status of the operation; OK on success, ERROR on failure.
- */
-
-Status shutdown_server() {
-	Status ret_status = shutdown_database(current_db);
-	return ret_status;
-}
-
 // Currently this main will setup the socket and accept a single client.
 // After handling the client, it will exit.
 // You will need to extend this to handle multiple concurrent clients
@@ -186,7 +166,5 @@ int main(void)
 
     handle_client(client_socket);
 
-	// TODO address later, just for testing sync_db()
-	shutdown_server();
     return 0;
 }

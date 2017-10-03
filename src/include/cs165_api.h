@@ -29,8 +29,8 @@ SOFTWARE.
 #define HANDLE_MAX_SIZE 64
 
 // MILESTONE 1: Only support single table queries
-// TODO support multiple tables within a db!
 #define MAX_NUM_TABLES 2
+#define MAX_COL_SIZE 4096
 
 /**
  * EXTRA
@@ -142,7 +142,7 @@ typedef enum GeneralizedColumnType {
     COLUMN
 } GeneralizedColumnType;
 /*
- * a union type holding either a column or a result struct
+t* a union type holding either a column or a result struct
  */
 typedef union GeneralizedColumnPointer {
     Result* result;
@@ -165,6 +165,7 @@ typedef struct GeneralizedColumnHandle {
     char name[HANDLE_MAX_SIZE];
     GeneralizedColumn generalized_column;
 } GeneralizedColumnHandle;
+
 /*
  * holds the information necessary to refer to generalized columns (results or columns)
  */
@@ -188,33 +189,67 @@ typedef struct Comparator {
 } Comparator;
 
 /*
- * tells the databaase what type of operator this is
+ * tells the database what type of operator this is
  */
 typedef enum OperatorType {
     CREATE,
     INSERT,
     OPEN,
+	SELECT,
+	SHUTDOWN
 } OperatorType;
+
+typedef enum CreateType {
+	DB,
+	TBL,
+	COL
+} CreateType;
+
 /*
- * necessary fields for insertion
+ * necessary fields for create
+ */
+typedef struct CreateOperator {
+	CreateType type;
+	char* name;
+	size_t column_count;
+	Table* table;
+} CreateOperator;
+
+/*
+ * necessary fields for insert
  */
 typedef struct InsertOperator {
     Table* table;
     int* values;
 } InsertOperator;
+
 /*
- * necessary fields for insertion
+ * necessary fields for open
  */
 typedef struct OpenOperator {
     char* db_name;
 } OpenOperator;
+
+/*
+ * necessary fields for select
+ */
+typedef struct SelectOperator {
+	Column* column;
+	int* positions;
+	int low;
+	int high;
+} SelectOperator;
+
 /*
  * union type holding the fields of any operator
  */
 typedef union OperatorFields {
+	CreateOperator create_operator;
     InsertOperator insert_operator;
     OpenOperator open_operator;
+	SelectOperator select_operator;
 } OperatorFields;
+
 /*
  * DbOperator holds the following fields:
  * type: the type of operator to perform (i.e. insert, select, ...)
@@ -233,28 +268,28 @@ extern Db *current_db;
 
 Status db_startup();
 
-/**
- * sync_db(db)
- * Saves the current status of the database to disk.
- *
- * db       : the database to sync.
- * returns  : the status of the operation.
- **/
 Status sync_db(Db* db);
 
 Status create_db(const char* db_name);
 
-Status load_db(const char* db_filename);
+Status load_db_text(const char* db_filename);
 
-Table* create_table(Db* db, const char* name, size_t num_columns, Status *status);
+Status load_db_bin(const char* db_name);
 
-Column* create_column(char *name, Table *table, bool sorted, Status *ret_status);
+Status relational_insert(Table* table, int* values);
+
+// TODO : convert return type to Status instead for consistency
+Status create_table(Db* db, const char* name, size_t num_columns);
+
+// TODO : convert return type to Status instead for consistency
+Status create_column(char *name, Table *table, bool sorted);
 
 Status shutdown_server();
+
 Status shutdown_database(Db* db);
 
-char** execute_db_operator(DbOperator* query);
-void db_operator_free(DbOperator* query);
+char* execute_db_operator(DbOperator* query);
 
+void db_operator_free(DbOperator* query);
 
 #endif /* CS165_H */

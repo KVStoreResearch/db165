@@ -32,6 +32,9 @@ SOFTWARE.
 #define MAX_NUM_TABLES 2
 #define MAX_COL_SIZE 4096
 
+// MILESTONE 1: Maximum number of client context handles
+#define MAX_NUM_HANDLES 24
+
 /**
  * EXTRA
  * DataType
@@ -55,6 +58,7 @@ typedef struct Column {
     int* data;
     // You will implement column indexes later. 
     void* index;
+	size_t length;
     //struct ColumnIndex *index;
     //bool clustered;
 } Column;
@@ -196,9 +200,13 @@ typedef enum OperatorType {
     INSERT,
     OPEN,
 	SELECT,
+	FETCH,
 	SHUTDOWN
 } OperatorType;
 
+/*
+ * specifies type of create operator
+ */
 typedef enum CreateType {
 	DB,
 	TBL,
@@ -238,7 +246,17 @@ typedef struct SelectOperator {
 	int* positions;
 	int low;
 	int high;
+	char* result_handle;
 } SelectOperator;
+
+/*
+ * necessary fields for fetch
+ */
+typedef struct FetchOperator {
+	Column* column;
+	char* positions_handle;
+	char* result_handle;
+} FetchOperator;
 
 /*
  * union type holding the fields of any operator
@@ -248,6 +266,7 @@ typedef union OperatorFields {
     InsertOperator insert_operator;
     OpenOperator open_operator;
 	SelectOperator select_operator;
+	FetchOperator fetch_operator;
 } OperatorFields;
 
 /*
@@ -272,17 +291,21 @@ Status sync_db(Db* db);
 
 Status create_db(const char* db_name);
 
+Status create_table(Db* db, const char* name, size_t num_columns);
+
+Status create_column(char *name, Table *table, bool sorted);
+
 Status load_db_text(const char* db_filename);
 
 Status load_db_bin(const char* db_name);
 
 Status relational_insert(Table* table, int* values);
 
-// TODO : convert return type to Status instead for consistency
-Status create_table(Db* db, const char* name, size_t num_columns);
+Column* select_all(Column* col, int low, int high, Status* status);
 
-// TODO : convert return type to Status instead for consistency
-Status create_column(char *name, Table *table, bool sorted);
+Column* select_posn(Column* col, int* positions, int low, int high, Status* status);
+
+Column* fetch(Column* col, Column* positions, Status* status);
 
 Status shutdown_server();
 

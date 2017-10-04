@@ -52,6 +52,7 @@ DbOperator* parse_command(char* query_command, message* send_message, int client
         // handle exists, store here. 
         *equals_pointer = '\0';
         cs165_log(stdout, "FILE HANDLE: %s\n", handle);
+		add_handle(context, handle, false);
         query_command = ++equals_pointer;
     } else {
         handle = NULL;
@@ -75,6 +76,11 @@ DbOperator* parse_command(char* query_command, message* send_message, int client
     } else if (strncmp(query_command, "select", 6) == 0) {
 		query_command += 6;
 		dbo = parse_select(query_command, send_message);
+		dbo->operator_fields.select_operator.result_handle = handle;
+	} else if (strncmp(query_command, "fetch", 5) == 0) {
+		query_command += 5;
+		dbo = parse_fetch(query_command, send_message);
+		dbo->operator_fields.fetch_operator.result_handle = handle;
 	} else if (strncmp(query_command, "shutdown", 8) == 0) {
 		dbo = parse_shutdown(query_command, send_message);
 	} 
@@ -358,7 +364,7 @@ DbOperator* parse_select(char* query_command, message* send_message) {
 	token = strsep(command_index, ",");
 	int high = atoi(token);
 
-	// make insert operator. 
+	// make select operator. 
 	DbOperator* dbo = malloc(sizeof(DbOperator));
 	dbo->type = SELECT;
 	dbo->operator_fields.select_operator.column = select_column;
@@ -369,8 +375,55 @@ DbOperator* parse_select(char* query_command, message* send_message) {
 	return dbo;
 }
 
+/* 
+ * parse fetch
+ */
+DbOperator* parse_fetch(char* query_command, message* send_message) {
+    // check for leading '('
+    if (strncmp(query_command, "(", 1) != 0) {
+		send_message->status = UNKNOWN_COMMAND;
+		return NULL;
+    }
+	query_command++;
+	char** command_index = &query_command;
+
+	char* column_name = next_token(command_index, &send_message->status);
+	if (send_message->status == INCORRECT_FORMAT) {
+		return NULL;
+	}
+
+	// lookup the table and make sure it exists. 
+	Column* fetch_column = lookup_column(column_name);
+	if (fetch_column == NULL) {
+		send_message->status = OBJECT_NOT_FOUND;
+		return NULL;
+	}
+
+	char* handle = next_token(command_index, &send_message->status);
+	int last_char = strlen(handle) - 1;
+	if (last_char < 0 || handle[last_char] != ')') {
+		send_message->status = INCORRECT_FORMAT;
+		return NULL;
+	}
+	// replace final ')' with null-termination character.
+	handle[last_char] = '\0';
+	if (send_message->status == INCORRECT_FORMAT) {
+		return NULL;
+	}
+
+	// construct fetch operator. 
+	DbOperator* dbo = malloc(sizeof(DbOperator));
+	dbo->type = FETCH;
+	dbo->operator_fields.fetch_operator.column = fetch_column;
+	dbo->operator_fields.fetch_operator.positions_handle = handle;
+
+	return dbo;
+}
+
 DbOperator* parse_shutdown(char* query_command, message* send_message) {
+	(void) query_command;
 	DbOperator* dbo = malloc(sizeof(DbOperator));
 	dbo->type = SHUTDOWN;
+	send_message->status = OK;
 	return dbo;
 }

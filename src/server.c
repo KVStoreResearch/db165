@@ -46,7 +46,15 @@ void handle_client(int client_socket) {
     message recv_message;
 
     // create the client context here
-    ClientContext* client_context = NULL;
+    ClientContext* client_context = (ClientContext*) malloc(sizeof(ClientContext));
+	if (!client_context) {
+		log_err("Could not create client context.\n");
+		exit(1);
+	}
+	client_context->chandles_in_use = 0;
+	client_context->chandle_slots = MAX_NUM_HANDLES;
+	client_context->chandle_table = (GeneralizedColumnHandle*) malloc(sizeof(GeneralizedColumnHandle)
+			* client_context->chandle_slots);
 
     // Continually receive messages from client and execute queries.
     // 1. Parse the command

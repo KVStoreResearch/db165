@@ -16,5 +16,7 @@ char* execute_insert(DbOperator* query);
 
 char* execute_select(DbOperator* query);
 
+char* execute_fetch(DbOperator* query);
+
 char* execute_shutdown();
 #endif

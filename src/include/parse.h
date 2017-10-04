@@ -20,5 +20,7 @@ DbOperator* parse_insert(char* query_command, message* send_message);
 
 DbOperator* parse_select(char* query_command, message* send_message);
 
+DbOperator* parse_fetch(char* query_command, message* send_message);
+
 DbOperator* parse_shutdown(char* query_command, message* send_message);
 #endif

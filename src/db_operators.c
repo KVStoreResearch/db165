@@ -1,4 +1,4 @@
-#include "cs165_api.h"
+#include "client_context.h"
 #include "db_operators.h"
 #include "utils.h"
 
@@ -19,6 +19,8 @@ char* execute_db_operator(DbOperator* query) {
 			return execute_insert(query);
 		case SELECT:
 			return execute_select(query);
+		case FETCH:
+			return execute_fetch(query);
 		case SHUTDOWN:
 			return execute_shutdown();
 		default:
@@ -68,9 +70,8 @@ char* execute_create_tbl(DbOperator* query) {
 char* execute_create_col(DbOperator* query) {
 	char* name = query->operator_fields.create_operator.name;
 	Table* table = query->operator_fields.create_operator.table;
-	size_t column_count = query->operator_fields.create_operator.column_count;
 
-    Status ret_status = create_column(name, table, column_count);
+    Status ret_status = create_column(name, table, false);
     if (ret_status.code != OK) {
         return "Could not complete create(col) query";
     }
@@ -101,7 +102,42 @@ char* execute_insert(DbOperator* query) {
 
 // TODO
 char* execute_select(DbOperator* query) {
+	Status ret_status;
+	SelectOperator op = query->operator_fields.select_operator;
+
+	Column* result_col;
+	if (!op.positions) {
+		result_col = select_all(op.column, op.low, op.high, &ret_status);
+	} else {
+		result_col = select_posn(op.column, op.positions, op.low, op.high, &ret_status);
+	}
+
+	GeneralizedColumnHandle* result_handle = lookup_client_handle(query->context, op.result_handle);
+	result_handle->generalized_column.column_pointer.column = result_col;
+
 	return "SELECT";
+}
+
+char* execute_fetch(DbOperator* query) {
+	Status ret_status;
+	FetchOperator op = query->operator_fields.fetch_operator;
+
+	GeneralizedColumnHandle* positions_handle = lookup_client_handle(query->context, op.positions_handle);
+	if (!positions_handle) {
+		ret_status.code = ERROR;
+		return "Error: could not find positions vector";
+	}
+	Column* positions_col =  positions_handle->generalized_column.column_pointer.column;
+	Column* result_col = fetch(op.column, positions_col, &ret_status);
+
+	GeneralizedColumnHandle* result_handle = lookup_client_handle(query->context, op.result_handle);
+	if (!result_handle) {
+		ret_status.code = ERROR;
+		return "Error: could not find results vector";
+	}
+	result_handle->generalized_column.column_pointer.column = result_col;
+
+	return "FETCH";
 }
 
 char* execute_shutdown() {
@@ -110,7 +146,7 @@ char* execute_shutdown() {
 		return "Could not sync DB to disk.";
 	}
 
-	return "OK";
+	return "SHUTDOWN";
 }
 
 // TODO

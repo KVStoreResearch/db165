@@ -172,6 +172,13 @@ int main(void)
         exit(1);
     }
 
+	// startup db
+	Status ret_status = db_startup();
+	if (ret_status.code != OK) {
+		log_err("Could not start up database.\n");
+		log_err(ret_status.error_message);
+	} 
+
     handle_client(client_socket);
 
     return 0;

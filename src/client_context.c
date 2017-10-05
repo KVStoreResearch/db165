@@ -36,7 +36,7 @@ Column* lookup_column(char* name) {
 	if (!table || !name) 
 		return NULL;
 	
-	for (size_t i = 0; i < table->col_count; i++) {
+	for (size_t i = 0; i < table->columns_size; i++) {
 		if (strcmp(table->columns[i].name, name) == 0) {
 			return &table->columns[i];
 		}

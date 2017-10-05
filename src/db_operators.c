@@ -80,8 +80,8 @@ char* execute_create_col(DbOperator* query) {
 }
 
 char* execute_open(DbOperator* query) {
-	char* db_name = query->operator_fields.open_operator.db_name;
-	Status ret_status = load_db_bin(db_name); 
+	char* filename = query->operator_fields.open_operator.filename;
+	Status ret_status = load(filename); 
 	if (ret_status.code != OK) {
 		return "Could not load db";
 	}

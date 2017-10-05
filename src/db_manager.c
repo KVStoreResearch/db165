@@ -4,11 +4,34 @@
 #include "cs165_api.h"
 #include "utils.h"
 
-#define MAX_LINE_SIZE 1024
-#define MAX_NUM_COLUMNS 256
 
 // currently active database - only need to support one at a time
 Db* current_db;
+
+Status db_startup() {
+	Status ret_status;
+
+	char* filename = construct_filename(SESSION_PATH, false);
+	FILE* f = fopen(filename, "r"); 
+	if (!f) {
+		ret_status.code = ERROR;
+		ret_status.error_message = "No existing database.\n";
+		return ret_status;
+	}
+	
+	char db_name[MAX_SIZE_NAME];
+	if (!fgets(db_name, MAX_SIZE_NAME, f)) {
+		ret_status.code = ERROR;
+		ret_status.error_message = "No existing database.\n";
+		return ret_status;
+	}
+	int last_char = strlen(db_name) - 1;
+	if (db_name[last_char]== '\n') // remove trailing newline
+		db_name[last_char] = '\0';
+
+	ret_status = load_db_bin(db_name);
+	return ret_status;
+}
 
 /* sync_db(Db* db)
  * Syncs the given database to disk, writes in binary mode.
@@ -18,15 +41,15 @@ Db* current_db;
 Status sync_db(Db* db) {
 	Status ret_status;
 	
-	char* filename = construct_filename(db->name);
+	char* filename = construct_filename(db->name, true);
 	FILE* f = fopen(filename, "wb");
 
 	fwrite(db, sizeof(Db), 1, f);
 	for (size_t i = 0; i < db->tables_size; i++) {
 		fwrite(&db->tables[i], sizeof(Table), 1, f);
-		for (size_t j = 0; j < db->tables[i].col_count; j++) {
+		for (size_t j = 0; j < db->tables[i].columns_size; j++) {
 			fwrite(&db->tables[i].columns[j], sizeof(Column), 1, f);
-			size_t num_rows = db->tables[i].table_length;
+			size_t num_rows = db->tables[i].length;
 			fwrite(db->tables[i].columns[j].data, sizeof(int), num_rows, f);
 		}
 	}
@@ -72,7 +95,7 @@ Status create_db(const char* db_name) {
  * - num_columns: Number of columns in the table
  * - ret_status: Stores the return status of the function; if any error occurs it 
  *		stores it as ERROR, otherwise OK
- * Returns a pointer to the newly created table. TODO Is this needed?
+ * Returns the status of the operation.
  */
 Status create_table(Db* db, const char* name, size_t num_columns) {
 	Status ret_status;
@@ -84,9 +107,9 @@ Status create_table(Db* db, const char* name, size_t num_columns) {
 
 	Table new_table;
 	strncpy(new_table.name, name, MAX_SIZE_NAME); 
-	new_table.col_count = num_columns;
-	new_table.cols_used = 0;
-	new_table.table_length = 0;
+	new_table.columns_capacity = num_columns;
+	new_table.columns_size = 0;
+	new_table.length = 0;
 	
 	new_table.columns = (Column*) malloc(sizeof(Column) * num_columns);
 	if (!new_table.columns)  {
@@ -98,7 +121,7 @@ Status create_table(Db* db, const char* name, size_t num_columns) {
 	db->tables_size++;
 	
 	log_info("TABLE CREATED in DB %s:\nNAME: %s\nNUMBER OF COLUMNS: %zu\n", 
-			db->name, new_table.name, new_table.col_count); 
+			db->name, new_table.name, new_table.columns_capacity); 
 	ret_status.code = OK;
 
 	return ret_status;
@@ -110,13 +133,13 @@ Status create_table(Db* db, const char* name, size_t num_columns) {
  * - name: Name of the newly created column. Must be unique within a table.
  * - table: Pointer to the table where the column will be added.
  * - sorted: Boolean value indicates whether or not the column is sorted.
- * Returns the status of the operation.
+ * Returns the status of the operation; status.code = OK on success, ERROR on failure
  * TODO: implement logic to handle sorted/unsorted
  */
 Status create_column(char* name, Table* table, bool sorted) {
 	(void) sorted;
 	Status ret_status;
-	if (table->cols_used == table->col_count) {
+	if (table->columns_size == table->columns_capacity) {
 		ret_status.code = ERROR;
 		log_err("Error: cannot create column.\n");
 		log_err("The maximum number of columns in table %s has been reached already.\n", 
@@ -124,12 +147,13 @@ Status create_column(char* name, Table* table, bool sorted) {
 		return ret_status;
 	}
 
-	Column new_col;
-	strncpy(new_col.name, name, MAX_SIZE_NAME);
-	new_col.data = (int*) malloc(MAX_COL_SIZE);
-	new_col.length = 0;
-	table->columns[table->cols_used] = new_col;
-	table->cols_used++;
+	Column new_column;
+	strncpy(new_column.name, name, MAX_SIZE_NAME);
+	new_column.data = (int*) malloc(COLUMN_BASE_CAPACITY);
+	new_column.capacity = COLUMN_BASE_CAPACITY;
+	new_column.length = 0;
+	table->columns[table->columns_size] = new_column;
+	table->columns_size++;
 
 	log_info("COLUMN CREATED in TABLE %s:\nNAME: %s\n", table->name, name);
 	ret_status.code = OK;
@@ -142,10 +166,10 @@ Status create_column(char* name, Table* table, bool sorted) {
  * - db_name: The name of the database to be loaded
  * Returns the status of the operation; status.code = OK on success, ERROR on failure
  */
-Status load_db_bin(const char* db_name) {
+Status load_db_bin(char* db_name) {
 	Status ret_status;	
 
-	char* filename = construct_filename(db_name);
+	char* filename = construct_filename(db_name, true);
 	FILE* f = fopen(filename, "rb");
 	if (!f) {
 		ret_status.code = ERROR;
@@ -158,15 +182,17 @@ Status load_db_bin(const char* db_name) {
 	current_db->tables = (Table*) malloc(sizeof(Table) * current_db->tables_capacity);
 
 	for (size_t i = 0; i < current_db->tables_size; i++) {
-		fread(&current_db->tables[i], sizeof(Table), 1, f);	
-		size_t num_columns = current_db->tables[i].col_count;
+		Table* current_table = &current_db->tables[i];
+		fread(current_table, sizeof(Table), 1, f);	
+		size_t num_columns = current_table->columns_size;
 		current_db->tables[i].columns = (Column*) malloc(sizeof(Column) * num_columns);
-
 		for (size_t j = 0; j < num_columns; j++) {
-			fread(&current_db->tables[i].columns[j], sizeof(Column), 1, f);
-			current_db->tables[i].columns[j].data = (int*) malloc(MAX_COL_SIZE);
-			size_t num_rows = current_db->tables[i].table_length;
-			fread(current_db->tables[i].columns[j].data, sizeof(int), num_rows, f);
+			Column* current_column = &current_table->columns[j];
+			fread(current_column, sizeof(Column), 1, f);
+			size_t column_length = current_column->length;
+			size_t column_capacity = current_column->capacity;
+			current_db->tables[i].columns[j].data = (int*) malloc(column_capacity);
+			fread(current_db->tables[i].columns[j].data, sizeof(int), column_length, f);
 		}
 	}
 	fclose(f);
@@ -177,13 +203,37 @@ Status load_db_bin(const char* db_name) {
 
 Status relational_insert(Table* table, int* values) {
 	Status ret_status;
-	for (size_t i = 0; i < table->col_count; i++) {
-		table->columns[i].data[table->table_length] = values[i];
+	for (size_t i = 0; i < table->columns_size; i++) {
+		if (table->columns[i].length == table->columns[i].capacity) {
+			ret_status = expand_column(&table->columns[i]);
+			if (ret_status.code != OK) {
+				return ret_status;
+			}
+		}
+		table->columns[i].data[table->length] = values[i];
 		table->columns[i].length++;
 	}	
-	table->table_length++;
+	table->length++;
 	
 	ret_status.code = OK;
+	return ret_status;
+}
+
+Status expand_column(Column* column) {
+	Status ret_status;
+	size_t new_capacity = column->capacity * 2; // double the capacity
+	int* new_data = (int*) malloc(sizeof(int) * new_capacity);
+	if (!new_data) {
+		ret_status.code = ERROR;
+		return ret_status; 
+	}
+	
+	for (size_t i = 0; i < column->length; i++) {
+		new_data[i] = column->data[i];
+	}
+	free(column->data);
+	column->data = new_data;
+	
 	return ret_status;
 }
 
@@ -261,7 +311,21 @@ Column* fetch(Column* col, Column* positions, Status* status) {
 }
 
 Status shutdown_database(Db* db) {
-	Status ret_status = sync_db(db);
+	Status ret_status;
+	char* filename = construct_filename(SESSION_PATH, false);
+	FILE* f = fopen(filename, "w"); 
+	if (!f) {
+		ret_status.code = ERROR;
+		ret_status.error_message = "Cannot open file to save db.\n";
+		return ret_status;
+	}
+	if (fwrite(db->name, strlen(db->name), 1, f) == 0) {
+		ret_status.code = ERROR;
+		ret_status.error_message = "Cannot write b name to file.\n";
+		return ret_status;
+	}
+
+	ret_status = sync_db(db);
 	if (ret_status.code == ERROR) {
 		log_err("Error while syncing db to disk.\n");
 		return ret_status;
@@ -277,23 +341,61 @@ Status shutdown_database(Db* db) {
  * - db_name: The name of the database to be loaded
  * Returns the status of the operation; status.code = OK on success, ERROR on failure
  */
-/*
-Status load_db_text(const char* db_name) {
+
+Status load(char* filename) {
 	Status ret_status;
 
-	char* db_filename = construct_filename(db_name);
-	FILE* f = fopen(db_filename, "r");
-	
-	ret_status = create_db(db_name);
-	if (ret_status.code == ERROR) {
-		log_err("DB %s could not be loaded.", db_name);
+	FILE* f = fopen(filename, "r");
+	if (!f) {
+		log_err("DB could not be loaded from file %s.\n", filename);
 		return ret_status;
 	}
-
+	
 	// read in first line with db, table, col names and construct db
 	char buf[MAX_LINE_SIZE];
 	char* header_line = fgets(buf, MAX_LINE_SIZE, f); 
-	load_db_header(header_line);
+	char* table_name = NULL, *token;
+	int num_cols = 0;	
+
+	while ((token = strsep(&header_line, ","))) {
+		char* column_token = NULL;
+		int arg_index = 0;
+		while ((column_token = strsep(&token, "."))) {
+			if (!table_name && arg_index == 1) {
+				table_name = column_token;
+				break;
+			}
+			arg_index++;
+		}
+		num_cols++;
+	}
+
+	// lookup table
+	Table* table = NULL;
+	for (size_t i = 0; i < current_db->tables_size; i++) {
+		if (strcmp(current_db->tables[i].name, table_name) == 0) {
+			table = &current_db->tables[i];
+		}
+	}
+	if (!table) {
+		ret_status.code = ERROR;
+		return ret_status;
+	}
+
+	// load data line by line
+	char* data_line;
+	while ((data_line = fgets(buf, MAX_LINE_SIZE, f))) {
+		int data[num_cols];
+		int data_index = 0;
+		char* data_token = NULL;
+		while ((data_token = strsep(&data_line, ","))) {
+			data[data_index] = atoi(data_token);
+		}
+		ret_status = relational_insert(table, data);	
+		if (ret_status.code != OK) {
+			return ret_status;
+		}
+	}
 
 	fclose(f);
 
@@ -301,70 +403,4 @@ Status load_db_text(const char* db_name) {
 	ret_status.code = OK;
 
 	return ret_status;
-}*/
-
-
-/* load_columns(char** column_names, Table* table, int num_cols) 
- * Loads num_cols columns into table, with columns_names as names
- * - column_names: names of the columns to be loaded
- * - table: table to load columns into
- * - num_cols: number of columns to load in
- * Returns the status of the operation; status.code = OK on success, ERROR on failure
- */
-Status load_columns(char** column_names, Table* table, int num_cols) {
-	Status ret_status;
-	for (int i = 0; i < num_cols; i++) {
-		ret_status = create_column(column_names[i], table, false);
-		if (ret_status.code == ERROR) {
-			return ret_status;
-		}
-	}
-	ret_status.code = OK;
-	return ret_status;
 }
-
-
-/* load_db_header(char* db_header)
- * Loads db meta data given the first line of the csv. Creates appropriate tables,
- * columns with specified metdata.
- * - db_header: text buffer with the first line of the csv read in.
- * Returns the status of the operation; status.code = OK on success, ERROR on failure
- */
-/*
-Status load_db_header(char* db_header) {
-	Status ret_status;
-	char* db_header_copy = malloc(strlen(db_header));
-	strncpy(db_header_copy, db_header, strlen(db_header));
-
-	int num_columns = 0;
-	char* token, *current_table_name, *table_name;
-	char* column_names[MAX_NUM_COLUMNS];
-	Table* current_table;
-
-	while ((token = strsep(&db_header_copy, ","))) {
-
-		strsep(&token, "."); // skip over the database name
-		table_name = strsep(&token, ".");
-		if (!current_table_name) current_table_name = table_name;
-
-		// if we've hit a new table name, create the one we've seen thus far
-		if (strcmp(table_name, current_table_name) != 0) {
-			current_table = create_table(current_db, current_table_name, num_columns, &ret_status);
-			load_columns(column_names, current_table, num_columns);
-
-			current_table_name = table_name;
-			num_columns = 0;
-		}
-
-		column_names[num_columns] = strsep(&token, ".");
-		if (token && token[strlen(token) - 1] == '\n') token[strlen(token) - 1] = '\0';
-		num_columns++;
-
-	}
-	current_table = create_table(current_db, table_name, num_columns, &ret_status);
-	ret_status = load_columns(column_names, current_table, num_columns);
-
-	ret_status.code = OK;
-	return ret_status;
-}*/
-

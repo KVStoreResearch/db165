@@ -30,7 +30,11 @@ SOFTWARE.
 
 // MILESTONE 1: Only support single table queries
 #define MAX_NUM_TABLES 2
-#define MAX_COL_SIZE 4096
+#define MAX_NUM_COLUMNS 256
+#define COLUMN_BASE_CAPACITY 4096
+
+#define MAX_LINE_SIZE 1024
+#define SESSION_PATH ".session"
 
 // MILESTONE 1: Maximum number of client context handles
 #define MAX_NUM_HANDLES 24
@@ -59,6 +63,7 @@ typedef struct Column {
     // You will implement column indexes later. 
     void* index;
 	size_t length;
+	size_t capacity;
     //struct ColumnIndex *index;
     //bool clustered;
 } Column;
@@ -75,15 +80,15 @@ typedef struct Column {
  *     name.
  * - col_count: the number of columns in the table
  * - columns: this is the pointer to an array of columns contained in the table.
- * - table_length: the size of the columns in the table.
+ * - length: the size of the columns in the table.
  **/
 
 typedef struct Table {
     char name[MAX_SIZE_NAME];
     Column *columns;
-    size_t col_count;
-	size_t cols_used;
-    size_t table_length;
+    size_t columns_size;
+	size_t columns_capacity;
+    size_t length;
 } Table;
 
 /**
@@ -235,7 +240,7 @@ typedef struct InsertOperator {
  * necessary fields for open
  */
 typedef struct OpenOperator {
-    char* db_name;
+    char* filename;
 } OpenOperator;
 
 /*
@@ -295,11 +300,13 @@ Status create_table(Db* db, const char* name, size_t num_columns);
 
 Status create_column(char *name, Table *table, bool sorted);
 
-Status load_db_text(const char* db_filename);
+Status load(char* filename);
 
-Status load_db_bin(const char* db_name);
+Status load_db_bin(char* db_name);
 
 Status relational_insert(Table* table, int* values);
+
+Status expand_column(Column* column);
 
 Column* select_all(Column* col, int low, int high, Status* status);
 

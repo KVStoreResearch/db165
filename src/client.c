@@ -92,7 +92,7 @@ int main(void)
            DEFAULT_STDIN_BUFFER_SIZE, stdin), !feof(stdin)) {
         if (output_str == NULL) {
             log_err("fgets failed.\n");
-            break;
+           break;
         }
 
         // Only process input that is greater than 1 character.

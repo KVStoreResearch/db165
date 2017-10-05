@@ -8,6 +8,7 @@
 #define __UTILS_H__
 
 #include <stdarg.h>
+#include <stdbool.h>
 #include <stdio.h>
 
 /**
@@ -60,5 +61,5 @@ void log_info(const char *format, ...);
 /*
  * constructs filename for given database name
  */
-char* construct_filename(const char* db_name);
+char* construct_filename(const char* db_name, bool is_binary);
 #endif /* __UTILS_H__ */

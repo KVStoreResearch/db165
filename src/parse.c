@@ -277,11 +277,11 @@ DbOperator* parse_load(char* load_arguments, message* send_message) {
 	}
 
 	token[last_char] = '\0';
-	char* cleaned_db_name = trim_quotes(token);
+	char* cleaned_filename = trim_quotes(token);
 
 	DbOperator* open_operator = (DbOperator*) malloc(sizeof(DbOperator));
 	open_operator->type = OPEN;
-	open_operator->operator_fields.open_operator.db_name = cleaned_db_name;
+	open_operator->operator_fields.open_operator.filename = cleaned_filename;
 	return open_operator;
 }
 
@@ -312,7 +312,7 @@ DbOperator* parse_insert(char* query_command, message* send_message) {
         DbOperator* dbo = malloc(sizeof(DbOperator));
         dbo->type = INSERT;
         dbo->operator_fields.insert_operator.table = insert_table;
-        dbo->operator_fields.insert_operator.values = malloc(sizeof(int) * insert_table->col_count);
+        dbo->operator_fields.insert_operator.values = malloc(sizeof(int) * insert_table->columns_size);
         // parse inputs until we reach the end. Turn each given string into an integer. 
         while ((token = strsep(command_index, ",")) != NULL) {
             int insert_val = atoi(token);
@@ -320,7 +320,7 @@ DbOperator* parse_insert(char* query_command, message* send_message) {
             columns_inserted++;
         }
         // check that we received the correct number of input values
-        if (columns_inserted != insert_table->col_count) {
+        if (columns_inserted != insert_table->columns_size) {
             send_message->status = INCORRECT_FORMAT;
             free (dbo);
             return NULL;

@@ -1,3 +1,4 @@
+#define _DEFAULT_SOURCE
 #include <stdio.h>
 #include <string.h>
 #include <stddef.h>
@@ -83,11 +84,13 @@ char* trim_quotes(char *str) {
     return str;
 }
 
-char* construct_filename(const char* db_name) {
+char* construct_filename(const char* db_name, bool is_binary) {
 	char* result = (char*) malloc(sizeof(char) * (strlen(db_name) + 9));
 	strcpy(result, DATA_PATH);
 	strcat(result, db_name);
-	strcat(result, ".bin");
+
+	if (is_binary) 
+		strcat(result, ".bin");
 	return result;
 }
 

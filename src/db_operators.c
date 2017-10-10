@@ -1,3 +1,5 @@
+#include <string.h>
+
 #include "client_context.h"
 #include "db_operators.h"
 #include "utils.h"
@@ -21,6 +23,8 @@ char* execute_db_operator(DbOperator* query) {
 			return execute_select(query);
 		case FETCH:
 			return execute_fetch(query);
+		case PRINT:
+			return execute_print(query);
 		case SHUTDOWN:
 			return execute_shutdown();
 		default:
@@ -140,17 +144,74 @@ char* execute_fetch(DbOperator* query) {
 	return "FETCH";
 }
 
+char* print_column(Column* column) {
+	int buf_capacity = MAX_LINE_SIZE;
+	int buf_size = 0;
+	char* buf = (char*) malloc(buf_capacity);
+
+	for (size_t i = 0; i < column->length; i++) {
+		char* result = itoa(column->data[i]);
+		int len = strlen(result);
+
+		if (buf_size + len >= buf_capacity) { // enlarge buffer size
+			char* new_buf = malloc(buf_capacity*2);
+			for (int j = 0; j < buf_size; j++) {
+				new_buf[j] = buf[j];
+			}	
+			free(buf);
+			buf = new_buf;
+			buf_capacity *= 2;
+		}
+
+		strncat(buf, result, len);
+		strncat(buf, "\n", 1);
+		buf_size += len + 1;
+	}
+
+	return buf;
+}
+
+char* execute_print(DbOperator* query) {
+	char* handle = query->operator_fields.print_operator.handle;
+
+	//look for handle in client_context
+	for (int i = 0; i < query->context->chandles_in_use; i++) {
+		if (strcmp(handle, query->context->chandle_table[i].name) == 0) {
+			return print_column(query->context->chandle_table[i].generalized_column.column_pointer.column);
+		}
+	}
+
+	//look for handle in column names in current_db
+	strsep(&handle, ".");
+	strsep(&handle, ".");
+	
+	for (size_t i = 0; i < current_db->tables_size; i++) {
+		for (size_t j = 0; j < current_db->tables[i].columns_size; j++) {
+			if (strcmp(handle, current_db->tables[i].columns[j].name) == 0) {
+				return print_column(&current_db->tables[i].columns[j]);
+			}
+		}
+	}
+	return "Could not find column to print";
+}
+
 char* execute_shutdown() {
 	Status ret_status = shutdown_database(current_db);	
 	if (ret_status.code != OK) {
 		return "Could not sync DB to disk.";
 	}
-
+	
+	exit(0);
 	return "SHUTDOWN";
 }
 
-// TODO
 void db_operator_free(DbOperator* query) {
+	if (!query)
+		return;
+	if (query->type == INSERT) {
+		free(query->operator_fields.insert_operator.values);
+	}
+
 	free(query);
 	return;
 }

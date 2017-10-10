@@ -206,6 +206,7 @@ typedef enum OperatorType {
     OPEN,
 	SELECT,
 	FETCH,
+	PRINT,
 	SHUTDOWN
 } OperatorType;
 
@@ -264,6 +265,13 @@ typedef struct FetchOperator {
 } FetchOperator;
 
 /*
+ * necessary fields for fetch
+ */
+typedef struct PrintOperator {
+	char* handle;
+} PrintOperator;
+
+/*
  * union type holding the fields of any operator
  */
 typedef union OperatorFields {
@@ -272,6 +280,7 @@ typedef union OperatorFields {
     OpenOperator open_operator;
 	SelectOperator select_operator;
 	FetchOperator fetch_operator;
+	PrintOperator print_operator;
 } OperatorFields;
 
 /*
@@ -321,5 +330,7 @@ Status shutdown_database(Db* db);
 char* execute_db_operator(DbOperator* query);
 
 void db_operator_free(DbOperator* query);
+
+void free_db(Db* db);
 
 #endif /* CS165_H */

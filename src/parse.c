@@ -7,11 +7,13 @@
  */
 
 #define _DEFAULT_SOURCE
+#include <limits.h>
 #include <string.h>
 #include <stdbool.h>
 #include <stddef.h>
 #include <stdlib.h>
 #include <ctype.h>
+
 #include "cs165_api.h"
 #include "parse.h"
 #include "utils.h"
@@ -81,6 +83,9 @@ DbOperator* parse_command(char* query_command, message* send_message, int client
 		query_command += 5;
 		dbo = parse_fetch(query_command, send_message);
 		dbo->operator_fields.fetch_operator.result_handle = handle;
+	} else if (strncmp(query_command, "print", 5) == 0) {
+		query_command += 5;
+		dbo = parse_print(query_command, send_message);
 	} else if (strncmp(query_command, "shutdown", 8) == 0) {
 		dbo = parse_shutdown(query_command, send_message);
 	} 
@@ -313,6 +318,7 @@ DbOperator* parse_insert(char* query_command, message* send_message) {
         dbo->type = INSERT;
         dbo->operator_fields.insert_operator.table = insert_table;
         dbo->operator_fields.insert_operator.values = malloc(sizeof(int) * insert_table->columns_size);
+
         // parse inputs until we reach the end. Turn each given string into an integer. 
         while ((token = strsep(command_index, ",")) != NULL) {
             int insert_val = atoi(token);
@@ -360,9 +366,15 @@ DbOperator* parse_select(char* query_command, message* send_message) {
 	
 	// parse upper and lower bounds
 	token = strsep(command_index, ",");
-	int low = atoi(token);
+	int low = INT_MIN;
+	if (strncmp(token, "null", 4) != 0) {
+		low = atoi(token);
+	}
 	token = strsep(command_index, ",");
-	int high = atoi(token);
+	int high = INT_MAX;
+	if (strncmp(token, "null", 4) != 0) {
+		high = atoi(token);
+	}
 
 	// make select operator. 
 	DbOperator* dbo = malloc(sizeof(DbOperator));
@@ -370,6 +382,7 @@ DbOperator* parse_select(char* query_command, message* send_message) {
 	dbo->operator_fields.select_operator.column = select_column;
 	dbo->operator_fields.select_operator.low = low;
 	dbo->operator_fields.select_operator.high = high;
+	dbo->operator_fields.select_operator.positions = NULL;
 
 	//TODO parse other arguments
 	return dbo;
@@ -416,6 +429,34 @@ DbOperator* parse_fetch(char* query_command, message* send_message) {
 	dbo->type = FETCH;
 	dbo->operator_fields.fetch_operator.column = fetch_column;
 	dbo->operator_fields.fetch_operator.positions_handle = handle;
+
+	return dbo;
+}
+
+DbOperator* parse_print(char* query_command, message* send_message) {
+    // check for leading '('
+    if (strncmp(query_command, "(", 1) != 0) {
+		send_message->status = UNKNOWN_COMMAND;
+		return NULL;
+    }
+	query_command++;
+	char** command_index = &query_command;
+
+	char* handle = next_token(command_index, &send_message->status);
+	if (send_message->status == INCORRECT_FORMAT) {
+		return NULL;
+	}
+
+	int last_char = strlen(handle) - 1;
+	if (last_char < 0 || handle[last_char] != ')') {
+		send_message->status = INCORRECT_FORMAT;
+		return NULL;
+	}
+	handle[last_char] = '\0';
+
+	DbOperator* dbo = (DbOperator*) malloc(sizeof(DbOperator));	
+	dbo->type = PRINT;
+	dbo->operator_fields.print_operator.handle = handle;
 
 	return dbo;
 }

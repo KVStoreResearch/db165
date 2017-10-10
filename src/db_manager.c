@@ -43,13 +43,18 @@ Status sync_db(Db* db) {
 	
 	char* filename = construct_filename(db->name, true);
 	FILE* f = fopen(filename, "wb");
+	if (!f) {
+		ret_status.code = ERROR;
+		ret_status.error_message = "Could not open file for syncing database\n";
+		return ret_status;
+	}
 
 	fwrite(db, sizeof(Db), 1, f);
 	for (size_t i = 0; i < db->tables_size; i++) {
 		fwrite(&db->tables[i], sizeof(Table), 1, f);
 		for (size_t j = 0; j < db->tables[i].columns_size; j++) {
 			fwrite(&db->tables[i].columns[j], sizeof(Column), 1, f);
-			size_t num_rows = db->tables[i].length;
+			size_t num_rows = db->tables[i].columns[j].length;
 			fwrite(db->tables[i].columns[j].data, sizeof(int), num_rows, f);
 		}
 	}
@@ -173,7 +178,7 @@ Status load_db_bin(char* db_name) {
 	FILE* f = fopen(filename, "rb");
 	if (!f) {
 		ret_status.code = ERROR;
-		ret_status.error_message = "Could not load file for database\n";
+		ret_status.error_message = "Could not load file for reading database\n";
 		return ret_status;
 	}
 	
@@ -189,6 +194,7 @@ Status load_db_bin(char* db_name) {
 		for (size_t j = 0; j < num_columns; j++) {
 			Column* current_column = &current_table->columns[j];
 			fread(current_column, sizeof(Column), 1, f);
+
 			size_t column_length = current_column->length;
 			size_t column_capacity = current_column->capacity;
 			current_db->tables[i].columns[j].data = (int*) malloc(column_capacity);
@@ -252,7 +258,7 @@ Column* select_all(Column* col, int low, int high, Status* status) {
 	int result_length = 0;
 
 	for (size_t i = 0; i < col->length; i++) {
-		if (col->data[i] >= low && col->data[i] <= high) {
+		if (col->data[i] >= low && col->data[i] < high) {
 			result->data[result_length] = i;
 			result_length++;
 		}
@@ -277,7 +283,7 @@ Column* select_posn(Column* col, int* positions, int low, int high, Status* stat
 	int result_length = 0;
 
 	for (size_t i = 0; i < col->length; i++) {
-		if (col->data[i] >= low && col->data[i] <= high) {
+		if (col->data[i] >= low && col->data[i] < high) {
 			result->data[positions[result_length]] = i;
 			result_length++;
 		}
@@ -405,10 +411,10 @@ Status load(char* filename) {
 	char* data_line;
 	while ((data_line = fgets(buf, MAX_LINE_SIZE, f))) {
 		int data[num_cols];
-		int data_index = 0;
 		char* data_token = NULL;
-		while ((data_token = strsep(&data_line, ","))) {
-			data[data_index] = atoi(data_token);
+		for (int i = 0; i < num_cols; i++) {
+			data_token = strsep(&data_line, ",");
+			data[i] = atoi(data_token);
 		}
 		ret_status = relational_insert(table, data);	
 		if (ret_status.code != OK) {

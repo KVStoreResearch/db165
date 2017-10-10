@@ -10,7 +10,7 @@
  **/
 char* execute_db_operator(DbOperator* query) {
 	if (!query) 
-		return "165";
+		return "";
 
 	switch (query->type) {
 		case CREATE:
@@ -56,7 +56,7 @@ char* execute_create_db(DbOperator* query) {
 		return "Could not complete create(db) query.";
 	}
 
-	return "OK";
+	return "";
 }
 
 char* execute_create_tbl(DbOperator* query) {
@@ -68,7 +68,7 @@ char* execute_create_tbl(DbOperator* query) {
         return "Could not complete create(tbl) query";
     }
 
-	return "OK";
+	return "";
 }
 
 char* execute_create_col(DbOperator* query) {
@@ -80,7 +80,7 @@ char* execute_create_col(DbOperator* query) {
         return "Could not complete create(col) query";
     }
 
-	return "OK";
+	return "";
 }
 
 char* execute_open(DbOperator* query) {
@@ -90,7 +90,7 @@ char* execute_open(DbOperator* query) {
 		return "Could not load db";
 	}
 	
-	return "OK";
+	return "";
 }
 
 char* execute_insert(DbOperator* query) {
@@ -101,7 +101,7 @@ char* execute_insert(DbOperator* query) {
 		return ret_status.error_message;
 	}
 	
-	return "INSERT";
+	return "";
 }
 
 // TODO
@@ -119,7 +119,7 @@ char* execute_select(DbOperator* query) {
 	GeneralizedColumnHandle* result_handle = lookup_client_handle(query->context, op.result_handle);
 	result_handle->generalized_column.column_pointer.column = result_col;
 
-	return "SELECT";
+	return "";
 }
 
 char* execute_fetch(DbOperator* query) {
@@ -141,13 +141,13 @@ char* execute_fetch(DbOperator* query) {
 	}
 	result_handle->generalized_column.column_pointer.column = result_col;
 
-	return "FETCH";
+	return "";
 }
 
 char* print_column(Column* column) {
 	int buf_capacity = MAX_LINE_SIZE;
 	int buf_size = 0;
-	char* buf = (char*) malloc(buf_capacity);
+	char* buf = (char*) calloc(1, sizeof(char) * buf_capacity);
 
 	for (size_t i = 0; i < column->length; i++) {
 		char* result = itoa(column->data[i]);
@@ -164,7 +164,8 @@ char* print_column(Column* column) {
 		}
 
 		strncat(buf, result, len);
-		strncat(buf, "\n", 1);
+		if (i < column->length - 1)
+			strncat(buf, "\n", 1);
 		buf_size += len + 1;
 	}
 
@@ -202,7 +203,7 @@ char* execute_shutdown() {
 	}
 	
 	exit(0);
-	return "SHUTDOWN";
+	return "";
 }
 
 void db_operator_free(DbOperator* query) {

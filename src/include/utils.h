@@ -62,4 +62,9 @@ void log_info(const char *format, ...);
  * constructs filename for given database name
  */
 char* construct_filename(const char* db_name, bool is_binary);
+
+/*
+ * converts integer to string
+ */
+char* itoa(int i);
 #endif /* __UTILS_H__ */

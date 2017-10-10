@@ -64,4 +64,7 @@ clean:
 distclean: clean
 	rm -rf $(DEPSDIR)
 
+utils_test: utils.o utils_test.o
+	$(CC) $(CFLAGS) $(DEPCFLAGS) -o $@ $^ $(LDFLAGS) $(LIBS)
+
 .PHONY: all clean distclean

@@ -85,12 +85,44 @@ char* trim_quotes(char *str) {
 }
 
 char* construct_filename(const char* db_name, bool is_binary) {
-	char* result = (char*) malloc(sizeof(char) * (strlen(db_name) + 9));
+	char* result = (char*) malloc(strlen(db_name) + 9);
 	strcpy(result, DATA_PATH);
 	strcat(result, db_name);
 
-	if (is_binary) 
+	if (is_binary)  {
 		strcat(result, ".bin");
+	}
+	return result;
+}
+
+char* itoa(int i) {
+	if (i == 0) {
+		return "0";
+	}
+
+	bool is_negative = i < 0 ? true : false;
+	size_t str_len = 0;
+	i *= is_negative ? -1 : 1;
+	int i_copy = i;
+
+	while (i_copy > 0) {
+		str_len++;
+		i_copy /= 10;
+	}
+	if (is_negative) 
+		str_len++;
+
+	i_copy = i;
+	char* result = (char*) malloc(sizeof(char*) * str_len + 1);
+	result[str_len] = '\0';
+	for (int i = str_len - 1; (is_negative && i >= 1) || (!is_negative && i >= 0); i--) {
+		result[i] = i_copy % 10 + '0';
+		i_copy /= 10;
+	}
+
+	if (is_negative) 
+		result[0] = '-';
+
 	return result;
 }
 

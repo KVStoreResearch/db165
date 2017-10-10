@@ -312,6 +312,11 @@ Column* fetch(Column* col, Column* positions, Status* status) {
 
 Status shutdown_database(Db* db) {
 	Status ret_status;
+	if (!db) {
+		ret_status.code = ERROR;
+		return ret_status;
+	}
+
 	char* filename = construct_filename(SESSION_PATH, false);
 	FILE* f = fopen(filename, "w"); 
 	if (!f) {
@@ -321,7 +326,7 @@ Status shutdown_database(Db* db) {
 	}
 	if (fwrite(db->name, strlen(db->name), 1, f) == 0) {
 		ret_status.code = ERROR;
-		ret_status.error_message = "Cannot write b name to file.\n";
+		ret_status.error_message = "Cannot write db name to session file.\n";
 		return ret_status;
 	}
 
@@ -331,8 +336,22 @@ Status shutdown_database(Db* db) {
 		return ret_status;
 	}
 
+	free_db(db);
 	ret_status.code = OK;
 	return ret_status;
+}
+
+void free_db(Db* db) {
+	for (size_t i = 0; i < db->tables_size; i++) {
+		for (size_t j = 0; j < db->tables[i].columns_size; j++) {
+			free(db->tables[i].columns[j].data); //free data array
+			//free(db->tables[i].columns[j].index);		
+		}
+		free(db->tables[i].columns);
+	}
+	free(db->tables);
+	free(db);
+	return;	
 }
 
 /* load_db_text(const char* db_name)

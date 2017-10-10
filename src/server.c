@@ -81,6 +81,7 @@ void handle_client(int client_socket) {
 
             // 2. Handle request
             char* result = execute_db_operator(query);
+			db_operator_free(query);
 
             send_message.length = strlen(result);
             char send_buffer[send_message.length + 1];
@@ -156,6 +157,13 @@ int setup_server() {
 // and remain running until it receives a shut-down command.
 int main(void)
 {
+	// startup db
+	Status ret_status = db_startup();
+	if (ret_status.code != OK) {
+		log_err("Could not start up database.\n");
+		log_err(ret_status.error_message);
+	} 
+
     int server_socket = setup_server();
     if (server_socket < 0) {
         exit(1);
@@ -171,13 +179,6 @@ int main(void)
         log_err("L%d: Failed to accept a new connection.\n", __LINE__);
         exit(1);
     }
-
-	// startup db
-	Status ret_status = db_startup();
-	if (ret_status.code != OK) {
-		log_err("Could not start up database.\n");
-		log_err(ret_status.error_message);
-	} 
 
     handle_client(client_socket);
 

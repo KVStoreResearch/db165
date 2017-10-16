@@ -1,4 +1,3 @@
-#define _DEFAULT_SOURCE
 #include <stdio.h>
 #include <string.h>
 #include <stddef.h>
@@ -14,7 +13,7 @@
 #define LOG_ERR 1
 #define LOG_INFO 1
 
-#define DATA_PATH "./data/"
+#define DATA_PATH "./"
 
 /* removes newline characters from the input string.
  * Shifts characters over and shortens the length of
@@ -92,37 +91,6 @@ char* construct_filename(const char* db_name, bool is_binary) {
 	if (is_binary)  {
 		strcat(result, ".bin");
 	}
-	return result;
-}
-
-char* itoa(int i) {
-	if (i == 0) {
-		return "0";
-	}
-
-	bool is_negative = i < 0 ? true : false;
-	size_t str_len = 0;
-	i *= is_negative ? -1 : 1;
-	int i_copy = i;
-
-	while (i_copy > 0) {
-		str_len++;
-		i_copy /= 10;
-	}
-	if (is_negative) 
-		str_len++;
-
-	i_copy = i;
-	char* result = (char*) malloc(sizeof(char*) * str_len + 1);
-	result[str_len] = '\0';
-	for (int i = str_len - 1; (is_negative && i >= 1) || (!is_negative && i >= 0); i--) {
-		result[i] = i_copy % 10 + '0';
-		i_copy /= 10;
-	}
-
-	if (is_negative) 
-		result[0] = '-';
-
 	return result;
 }
 

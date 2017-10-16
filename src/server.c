@@ -30,6 +30,178 @@
 
 #define DEFAULT_QUERY_BUFFER_SIZE 1024
 
+typedef enum mode {
+	DEFAULT,
+	LOAD
+} mode;
+
+static mode current_mode = DEFAULT;
+
+/*
+ * create_client_context()
+ * Creates client context and returns pointer to it
+ */
+ClientContext* create_client_context() {
+	ClientContext* context = (ClientContext*) malloc(sizeof(ClientContext));
+	if (!context) {
+		log_err("Could not create client context.\n");
+		exit(1);
+	}
+	context->chandles_in_use = 0;
+	context->chandle_slots = MAX_NUM_HANDLES;
+	context->chandle_table = (GeneralizedColumnHandle*) malloc(sizeof(GeneralizedColumnHandle)
+			* context->chandle_slots);
+}
+
+int send_result(int client_socket, message send_message, char* result) {
+	send_message.length = strlen(result);
+	char send_buffer[send_message.length + 1];
+	strcpy(send_buffer, result);
+	send_message.payload.text = send_buffer;
+
+	// Send status of the received message (OK, UNKNOWN_QUERY, etc)
+	if (send(client_socket, &(send_message), sizeof(message), 0) == -1) {
+		log_err("Failed to send message.");
+		exit(1);
+	}
+
+	// Send response of request
+	if (send(client_socket, result, send_message.length, 0) == -1) {
+		log_err("Failed to send message.");
+		exit(1);
+	}
+}
+
+int handle_client_default(int client_socket, ClientContext* client_context) {
+	message recv_message;
+	int length = recv(client_socket, &recv_message, sizeof(message), 0);
+	if (length < 0) {
+		log_err("Client connection closed!\n");
+		exit(1);
+	} else if (length == 0) {
+		return 1;
+	}
+
+	char recv_buffer[recv_message.length + 1];
+	length = recv(client_socket, recv_buffer, recv_message.length,0);
+	recv_message.payload.text = recv_buffer;
+	recv_message.payload.text[recv_message.length] = '\0';
+	
+	message send_message;
+	char* result = NULL;
+	if (strncmp(recv_message.payload.text, BEGIN_LOAD_MESSAGE, 
+				strlen(BEGIN_LOAD_MESSAGE)) == 0) {
+		current_mode = LOAD;
+		result = "Load message received!";
+		send_message.status = OK_BEGIN_LOAD;
+	} else {
+		// Parse command
+		DbOperator* query = parse_command(recv_message.payload.text, &send_message, 
+				client_socket, client_context);
+		// Handle request
+		result = execute_db_operator(query);
+		db_operator_free(query);
+	}
+	send_result(client_socket, send_message, result);
+	return 0;
+}
+
+int handle_client_load(int client_socket, ClientContext* context) {
+	message recv_message, send_message;
+	int length_received = recv(client_socket, &recv_message, sizeof(message), 0);
+	if (length_received < 0) {
+		log_err("Client connection closed!\n");
+		exit(1);
+	} else if (length_received == 0) {
+		return -1;
+	} 
+
+	char* header_line = malloc(recv_message.length);
+	length_received = recv(client_socket, header_line, recv_message.length, 0);
+	if (length_received < 0) {
+		log_err("Client connection closed!\n");
+		exit(1);
+	} else if (length_received == 0) {
+		return -1;
+	} 
+
+	send_message.status = OK_WAIT_FOR_RESPONSE;
+	send_message.payload.text = "Beginning load...\n";
+	send_message.length = strlen(send_message.payload.text);
+	if (send(client_socket, &send_message, sizeof(message), 0) == -1) {
+		log_err("Could not send client acknowledgment of load start.\n");
+		return -1;
+	}
+	if (send(client_socket, send_message.payload.text, send_message.length, 0) == -1) {
+		log_err("Could not send client acknowledgment payload of load start.\n");
+		return -1;
+	}
+	
+	length_received = recv(client_socket, &recv_message, sizeof(message), 0);
+	if (length_received < 0) {
+		log_err("Client connection closed!\n");
+		exit(1);
+	} else if (length_received == 0) {
+		return -1;
+	} 
+
+	int total_length = recv_message.length;
+	int total_length_received = 0;
+	int partition_length = recv_message.partition_length;
+	int* buf = malloc(total_length);
+	if (!buf) {
+		log_err("Could not allocate buffer for receiving data for load.\n");
+	}
+
+	while (total_length_received != total_length) {
+		int length_received = recv(client_socket, (char*) buf + total_length_received, 
+				partition_length, 0);
+		if (length_received <= 0) {
+			log_err("Error in receiving load data.\n");
+			free(header_line);
+			free(buf);
+			send_message.status = EXECUTION_ERROR; 
+		} else {
+			send_message.status = OK_WAIT_FOR_RESPONSE;
+		}
+		
+		if (send(client_socket, &send_message, sizeof(message), 0) == -1) {
+			log_err("Could not send confirmation of receipt of load data to client.\n");
+			free(buf);
+			free(header_line);
+			return -1;
+		}
+		total_length_received += length_received;
+	}
+
+	send_message.status = OK_DONE;
+	send_message.payload.text = "File loaded!\n";
+	send_message.length = strlen(send_message.payload.text);
+	if (send(client_socket, &send_message, sizeof(message), 0) == -1) {
+		log_err("Could not send confirmation of load completion.\n");
+		free(buf);
+		free(header_line);
+		return -1;
+	} 
+	if (send(client_socket, send_message.payload.text, send_message.length, 0) == -1) {
+		log_err("Could not send confirmation of load completion.\n");
+		free(buf);
+		free(header_line);
+		return -1;
+	} 
+
+	Status load_status = load(header_line, buf, total_length / sizeof(int));
+	if (load_status.code != OK) {
+		log_err("Error occured when loading the database.\n");
+		return -1;
+	}
+
+	current_mode = DEFAULT;
+	free(buf);
+	free(header_line);
+	return 0;
+}
+
 /**
  * handle_client(client_socket)
  * This is the execution routine after a client has connected.
@@ -37,69 +209,21 @@
  **/
 void handle_client(int client_socket) {
     int done = 0;
-    int length = 0;
 
     log_info("Connected to socket: %d.\n", client_socket);
 
-    // Create two messages, one from which to read and one from which to receive
-    message send_message;
-    message recv_message;
-
     // create the client context here
-    ClientContext* client_context = (ClientContext*) malloc(sizeof(ClientContext));
-	if (!client_context) {
-		log_err("Could not create client context.\n");
-		exit(1);
-	}
-	client_context->chandles_in_use = 0;
-	client_context->chandle_slots = MAX_NUM_HANDLES;
-	client_context->chandle_table = (GeneralizedColumnHandle*) malloc(sizeof(GeneralizedColumnHandle)
-			* client_context->chandle_slots);
+    ClientContext* client_context = create_client_context();
 
-    // Continually receive messages from client and execute queries.
-    // 1. Parse the command
-    // 2. Handle request if appropriate
-    // 3. Send status of the received message (OK, UNKNOWN_QUERY, etc)
-    // 4. Send response of request.
     do {
-        length = recv(client_socket, &recv_message, sizeof(message), 0);
-        if (length < 0) {
-            log_err("Client connection closed!\n");
-            exit(1);
-        } else if (length == 0) {
-            done = 1;
-        }
-
-        if (!done) {
-            char recv_buffer[recv_message.length + 1];
-            length = recv(client_socket, recv_buffer, recv_message.length,0);
-            recv_message.payload = recv_buffer;
-            recv_message.payload[recv_message.length] = '\0';
-
-            // 1. Parse command
-            DbOperator* query = parse_command(recv_message.payload, &send_message, client_socket, client_context);
-
-            // 2. Handle request
-            char* result = execute_db_operator(query);
-			db_operator_free(query);
-
-            send_message.length = strlen(result);
-            char send_buffer[send_message.length + 1];
-            strcpy(send_buffer, result);
-            send_message.payload = send_buffer;
-            
-            // 3. Send status of the received message (OK, UNKNOWN_QUERY, etc)
-            if (send(client_socket, &(send_message), sizeof(message), 0) == -1) {
-                log_err("Failed to send message.");
-                exit(1);
-            }
-
-            // 4. Send response of request
-            if (send(client_socket, result, send_message.length, 0) == -1) {
-                log_err("Failed to send message.");
-                exit(1);
-            }
-        }
+		switch (current_mode) {
+			case LOAD:
+				done = handle_client_load(client_socket, client_context);
+				break;
+			default:
+				done = handle_client_default(client_socket, client_context);
+				break;
+		}
     } while (!done);
 
     log_info("Connection closed at socket %d!\n", client_socket);
@@ -180,6 +304,7 @@ int main(void)
         exit(1);
     }
 
+	// Handle client messages
     handle_client(client_socket);
 
     return 0;

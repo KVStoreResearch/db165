@@ -24,6 +24,7 @@ machine please look into this as a a source of error. */
 #include <sys/socket.h>
 #include <sys/un.h>
 
+#include "client_load.h"
 #include "common.h"
 #include "message.h"
 #include "utils.h"
@@ -85,7 +86,7 @@ int main(void)
     // 1. output interactive marker
     // 2. read from stdin until eof.
     char read_buffer[DEFAULT_STDIN_BUFFER_SIZE];
-    send_message.payload = read_buffer;
+    send_message.payload.text = read_buffer;
     send_message.status = 0;
 
     while (printf("%s", prefix), output_str = fgets(read_buffer,
@@ -95,22 +96,31 @@ int main(void)
            break;
         }
 
-        // Only process input that is greater than 1 character.
+        // Only process input that is greater than 2 character.
         // Convert to message and send the message and the
         // payload directly to the server.
         send_message.length = strlen(read_buffer);
         if (send_message.length > 1) {
+			if (strncmp(read_buffer, "load", 4) == 0) {
+				char read_buffer_copy[DEFAULT_STDIN_BUFFER_SIZE];
+				strncpy(read_buffer_copy, read_buffer, strlen(read_buffer));
+				if (send_load_data(read_buffer_copy, client_socket) == -1) {
+					log_err("Could not load data.");
+				}
+				continue;
+			} 
+
             // Send the message_header, which tells server payload size
             if (send(client_socket, &(send_message), sizeof(message), 0) == -1) {
                 log_err("Failed to send message header.");
                 exit(1);
             }
 
-            // Send the payload (query) to server
-            if (send(client_socket, send_message.payload, send_message.length, 0) == -1) {
-                log_err("Failed to send query payload.");
-                exit(1);
-            }
+			// Send the payload (query) to server
+			if (send(client_socket, send_message.payload.text, send_message.length, 0) == -1) {
+				log_err("Failed to send query payload.");
+				exit(1);
+			}
 
             // Always wait for server response (even if it is just an OK message)
             if ((len = recv(client_socket, &(recv_message), sizeof(message), 0)) > 0) {

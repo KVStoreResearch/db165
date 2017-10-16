@@ -29,15 +29,16 @@ SOFTWARE.
 #define HANDLE_MAX_SIZE 64
 
 // MILESTONE 1: Only support single table queries
+#define MAX_NUM_HANDLES 24
 #define MAX_NUM_TABLES 2
 #define MAX_NUM_COLUMNS 256
-#define COLUMN_BASE_CAPACITY 4096
 
-#define MAX_LINE_SIZE 1024
+#define COLUMN_BASE_CAPACITY 4096
+#define DEFAULT_PRINT_BUFFER_SIZE 4096 
+
 #define SESSION_PATH ".session"
 
-// MILESTONE 1: Maximum number of client context handles
-#define MAX_NUM_HANDLES 24
+#define BEGIN_LOAD_MESSAGE "LOAD"
 
 /**
  * EXTRA
@@ -309,13 +310,11 @@ Status create_table(Db* db, const char* name, size_t num_columns);
 
 Status create_column(char *name, Table *table, bool sorted);
 
-Status load(char* filename);
+Status load(char* header_line, int* data, int data_length);
 
-Status load_db_bin(char* db_name);
+Status open_db(char* db_name);
 
 Status relational_insert(Table* table, int* values);
-
-Status expand_column(Column* column);
 
 Column* select_all(Column* col, int low, int high, Status* status);
 

@@ -6,23 +6,21 @@
 
 DbOperator* parse_command(char* query_command, message* send_message, int client, ClientContext* context);
 
-DbOperator* parse_create(char* query_command, message* send_message);
+DbOperator* parse_create(char* create_arguments, message* send_message);
 
-DbOperator* parse_create_db(char* query_command, message* send_message);
+DbOperator* parse_create_db(char* create_db_arguments, message* send_message);
 
-DbOperator* parse_create_tbl(char* query_command, message* send_message);
+DbOperator* parse_create_tbl(char* create_tbl_arguments, message* send_message);
 
-DbOperator* parse_create_col(char* query_command, message* send_message);
+DbOperator* parse_create_col(char* create_col_arguments, message* send_message);
 
-DbOperator* parse_load(char* query_command, message* send_message);
+DbOperator* parse_insert(char* insert_arguments, message* send_message);
 
-DbOperator* parse_insert(char* query_command, message* send_message);
+DbOperator* parse_select(char* select_arguments, message* send_message);
 
-DbOperator* parse_select(char* query_command, message* send_message);
+DbOperator* parse_fetch(char* fetch_arguments, message* send_message);
 
-DbOperator* parse_fetch(char* query_command, message* send_message);
+DbOperator* parse_print(char* print_arguments, message* send_message);
 
-DbOperator* parse_print(char* query_command, message* send_message);
-
-DbOperator* parse_shutdown(char* query_command, message* send_message);
+DbOperator* parse_shutdown(message* send_message);
 #endif

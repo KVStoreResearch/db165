@@ -1,4 +1,4 @@
-#define _DEFAULT_SOURCE
+#define _X_OPEN_SOURCE
 #include <string.h>
 
 #include "client_context.h"
@@ -8,12 +8,13 @@
  * Returns pointer to a Table given fully qualified column name
  */
 Table* lookup_table(char *name) {
-	char* db_name = strsep(&name, "."); // advance name to just the table_name 
+	char* name_copy = strndup(name, strlen(name));
+	char* db_name = strsep(&name_copy, "."); // advance name to just the table_name 
 	if (strcmp(db_name, current_db->name) != 0)
 		return NULL;
 
 	for (size_t i = 0; i < current_db->tables_size; i++) {
-		if (strcmp(current_db->tables[i].name, name) == 0) {
+		if (strcmp(current_db->tables[i].name, name_copy) == 0) {
 			return &current_db->tables[i];
 		}
 	}
@@ -25,19 +26,20 @@ Table* lookup_table(char *name) {
  * Returns pointer to a Column given fully qualified column name
  */
 Column* lookup_column(char* name) {
-	char* db_name = strsep(&name, ".");
-	char* table_name = strsep(&name, ".");
+	char* name_copy = strndup(name, strlen(name));
+	char* db_name = strsep(&name_copy, ".");
+	char* table_name = strsep(&name_copy, ".");
 	char* db_table_name = (char*) malloc(strlen(db_name) + strlen(table_name) + 1);
 	strcpy(db_table_name, db_name);
 	strcat(db_table_name, ".");
 	strcat(db_table_name, table_name);
 
 	Table* table = lookup_table(db_table_name);
-	if (!table || !name) 
+	if (!table || !name_copy) 
 		return NULL;
 	
 	for (size_t i = 0; i < table->columns_size; i++) {
-		if (strcmp(table->columns[i].name, name) == 0) {
+		if (strcmp(table->columns[i].name, name_copy) == 0) {
 			return &table->columns[i];
 		}
 	}

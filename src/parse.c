@@ -6,7 +6,6 @@
  * database operator.
  */
 
-#define _DEFAULT_SOURCE
 #include <limits.h>
 #include <string.h>
 #include <stdbool.h>
@@ -69,10 +68,7 @@ DbOperator* parse_command(char* query_command, message* send_message, int client
     if (strncmp(query_command, "create", 6) == 0) {
         query_command += 6;
         dbo = parse_create(query_command, send_message);
-    } else if (strncmp(query_command, "load", 4) == 0) {
-		query_command += 4;
-        dbo = parse_load(query_command, send_message);
-	} else if (strncmp(query_command, "relational_insert", 17) == 0) {
+    } else if (strncmp(query_command, "relational_insert", 17) == 0) {
         query_command += 17;
         dbo = parse_insert(query_command, send_message);
     } else if (strncmp(query_command, "select", 6) == 0) {
@@ -87,7 +83,7 @@ DbOperator* parse_command(char* query_command, message* send_message, int client
 		query_command += 5;
 		dbo = parse_print(query_command, send_message);
 	} else if (strncmp(query_command, "shutdown", 8) == 0) {
-		dbo = parse_shutdown(query_command, send_message);
+		dbo = parse_shutdown(send_message);
 	} 
 
     if (dbo == NULL) {
@@ -138,9 +134,9 @@ DbOperator* parse_create(char* create_arguments, message* send_message) {
  * This method takes in a string representing the arguments to create a database.
  * It parses those arguments, checks that they are valid, and creates a database.
  **/
-DbOperator* parse_create_db(char* create_arguments, message* send_message) {
+DbOperator* parse_create_db(char* create_db_arguments, message* send_message) {
     char *token;
-    token = strsep(&create_arguments, ",");
+    token = strsep(&create_db_arguments, ",");
     // not enough arguments if token is NULL
     if (token == NULL) {
 		send_message->status = INCORRECT_FORMAT;
@@ -158,7 +154,7 @@ DbOperator* parse_create_db(char* create_arguments, message* send_message) {
         // replace final ')' with null-termination character.
         db_name[last_char] = '\0';
 
-        token = strsep(&create_arguments, ",");
+        token = strsep(&create_db_arguments, ",");
         if (token != NULL) {
 			send_message->status = INCORRECT_FORMAT;
             return NULL;
@@ -177,8 +173,8 @@ DbOperator* parse_create_db(char* create_arguments, message* send_message) {
  * This method takes in a string representing the arguments to create a table.
  * It parses those arguments, checks that they are valid, and creates a table.
  **/
-DbOperator* parse_create_tbl(char* create_arguments, message* send_message) {
-    char** create_arguments_index = &create_arguments;
+DbOperator* parse_create_tbl(char* create_tbl_arguments, message* send_message) {
+    char** create_arguments_index = &create_tbl_arguments;
     char* table_name = next_token(create_arguments_index, &send_message->status);
     char* db_name = next_token(create_arguments_index, &send_message->status);
     char* col_cnt = next_token(create_arguments_index, &send_message->status);
@@ -227,8 +223,8 @@ DbOperator* parse_create_tbl(char* create_arguments, message* send_message) {
  * This method takes in a string representing the arguments to create a column.
  * It parses those arguments, checks that they are valid, and creates a column.
  **/
-DbOperator* parse_create_col(char* create_arguments, message* send_message) {
-	char** create_arguments_index = &create_arguments;
+DbOperator* parse_create_col(char* create_col_arguments, message* send_message) {
+	char** create_arguments_index = &create_col_arguments;
     char* col_name = next_token(create_arguments_index, &send_message->status);
     char* db_and_table_name = next_token(create_arguments_index, &send_message->status);
 
@@ -263,45 +259,21 @@ DbOperator* parse_create_col(char* create_arguments, message* send_message) {
 
     return create_col_operator;
 }
-/**
- * parse_load parses a load statment and passes necessary arguments off to the next function
- */
-DbOperator* parse_load(char* load_arguments, message* send_message) {
-    if (strncmp(load_arguments, "(", 1) != 0) {
-        send_message->status = UNKNOWN_COMMAND;
-		return NULL;
-    } 	
-
-	// token stores first argument. Tokenizer copy now points to just past first ","
-	char* token = next_token(&load_arguments, &send_message->status);
-	token++; // get rid of leading (
-
-	int last_char = strlen(token) - 1;
-	if (send_message->status == INCORRECT_FORMAT || token[last_char] != ')') {
-		return NULL;
-	}
-
-	token[last_char] = '\0';
-	char* cleaned_filename = trim_quotes(token);
-
-	DbOperator* open_operator = (DbOperator*) malloc(sizeof(DbOperator));
-	open_operator->type = OPEN;
-	open_operator->operator_fields.open_operator.filename = cleaned_filename;
-	return open_operator;
-}
-
 
 /**
  * parse_insert reads in the arguments for a create statement and 
  * then passes these arguments to a database function to insert a row.
  **/
-DbOperator* parse_insert(char* query_command, message* send_message) {
+DbOperator* parse_insert(char* insert_arguments, message* send_message) {
+    char *tokenizer_copy, *to_free, *token;
+    tokenizer_copy = to_free = malloc((strlen(insert_arguments)+1) * sizeof(char));
+    strcpy(tokenizer_copy, insert_arguments);
+
     unsigned int columns_inserted = 0;
-    char* token = NULL;
     // check for leading '('
-    if (strncmp(query_command, "(", 1) == 0) {
-        query_command++;
-        char** command_index = &query_command;
+    if (strncmp(tokenizer_copy, "(", 1) == 0) {
+        tokenizer_copy++;
+        char** command_index = &tokenizer_copy;
         // parse table input
         char* table_name = next_token(command_index, &send_message->status);
         if (send_message->status == INCORRECT_FORMAT) {
@@ -331,6 +303,8 @@ DbOperator* parse_insert(char* query_command, message* send_message) {
             free (dbo);
             return NULL;
         } 
+
+		free(to_free);
         return dbo;
     } else {
         send_message->status = UNKNOWN_COMMAND;
@@ -341,16 +315,19 @@ DbOperator* parse_insert(char* query_command, message* send_message) {
 /*
  * parse_select
  */
-DbOperator* parse_select(char* query_command, message* send_message) {
-    char* token = NULL;
+DbOperator* parse_select(char* select_arguments, message* send_message) {
+    char *tokenizer_copy, *to_free, *token;
+    tokenizer_copy = to_free = malloc(strlen(select_arguments)+1);
+    strcpy(tokenizer_copy, select_arguments);
+
     // check for leading '('
-    if (strncmp(query_command, "(", 1) != 0) {
+    if (strncmp(tokenizer_copy, "(", 1) != 0) {
 		send_message->status = UNKNOWN_COMMAND;
 		return NULL;
     }
 
-	query_command++;
-	char** command_index = &query_command;
+	tokenizer_copy++;
+	char** command_index = &tokenizer_copy;
 
 	char* column_name = next_token(command_index, &send_message->status);
 	if (send_message->status == INCORRECT_FORMAT) {
@@ -391,14 +368,18 @@ DbOperator* parse_select(char* query_command, message* send_message) {
 /* 
  * parse fetch
  */
-DbOperator* parse_fetch(char* query_command, message* send_message) {
+DbOperator* parse_fetch(char* fetch_arguments, message* send_message) {
+    char *tokenizer_copy, *to_free, *token;
+    tokenizer_copy = to_free = malloc(strlen(fetch_arguments)+1);
+    strcpy(tokenizer_copy, fetch_arguments);
+
     // check for leading '('
-    if (strncmp(query_command, "(", 1) != 0) {
+    if (strncmp(tokenizer_copy, "(", 1) != 0) {
 		send_message->status = UNKNOWN_COMMAND;
 		return NULL;
     }
-	query_command++;
-	char** command_index = &query_command;
+	tokenizer_copy++;
+	char** command_index = &tokenizer_copy;
 
 	char* column_name = next_token(command_index, &send_message->status);
 	if (send_message->status == INCORRECT_FORMAT) {
@@ -433,14 +414,18 @@ DbOperator* parse_fetch(char* query_command, message* send_message) {
 	return dbo;
 }
 
-DbOperator* parse_print(char* query_command, message* send_message) {
+DbOperator* parse_print(char* print_arguments, message* send_message) {
+    char *tokenizer_copy, *to_free;
+    tokenizer_copy = to_free = malloc((strlen(print_arguments)+1) * sizeof(char));
+    strcpy(tokenizer_copy, print_arguments);
+
     // check for leading '('
-    if (strncmp(query_command, "(", 1) != 0) {
+    if (strncmp(tokenizer_copy, "(", 1) != 0) {
 		send_message->status = UNKNOWN_COMMAND;
 		return NULL;
     }
-	query_command++;
-	char** command_index = &query_command;
+	tokenizer_copy++;
+	char** command_index = &tokenizer_copy;
 
 	char* handle = next_token(command_index, &send_message->status);
 	if (send_message->status == INCORRECT_FORMAT) {
@@ -459,10 +444,9 @@ DbOperator* parse_print(char* query_command, message* send_message) {
 	dbo->operator_fields.print_operator.handle = handle;
 
 	return dbo;
-}
+	}
 
-DbOperator* parse_shutdown(char* query_command, message* send_message) {
-	(void) query_command;
+DbOperator* parse_shutdown(message* send_message) {
 	DbOperator* dbo = malloc(sizeof(DbOperator));
 	dbo->type = SHUTDOWN;
 	send_message->status = OK;

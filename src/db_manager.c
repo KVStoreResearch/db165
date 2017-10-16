@@ -1,6 +1,5 @@
-#define _DEFAULT_SOURCE
-
 #include <string.h> 
+
 #include "cs165_api.h"
 #include "utils.h"
 
@@ -29,7 +28,7 @@ Status db_startup() {
 	if (db_name[last_char]== '\n') // remove trailing newline
 		db_name[last_char] = '\0';
 
-	ret_status = load_db_bin(db_name);
+	ret_status = open_db(db_name);
 	return ret_status;
 }
 
@@ -73,7 +72,7 @@ Status sync_db(Db* db) {
 Status create_db(const char* db_name) {
 	struct Status ret_status;
 
-	Db* new_db = (Db*) malloc(sizeof(Db));
+	Db* new_db = malloc(sizeof *new_db);
 	if (!new_db) {
 		ret_status.code = OK;
 		return ret_status;
@@ -82,7 +81,7 @@ Status create_db(const char* db_name) {
 	new_db->tables_size = 0;
 	new_db->tables_capacity = MAX_NUM_TABLES;
 	strncpy(new_db->name, db_name, MAX_SIZE_NAME);
-	new_db->tables = (Table*) malloc(sizeof(Table) * new_db->tables_capacity);
+	new_db->tables = malloc(sizeof *new_db->tables * new_db->tables_capacity);
 	current_db = new_db;
 
 	log_info("DB CREATED:\nNAME: %s\n", new_db->name);
@@ -116,7 +115,7 @@ Status create_table(Db* db, const char* name, size_t num_columns) {
 	new_table.columns_size = 0;
 	new_table.length = 0;
 	
-	new_table.columns = (Column*) malloc(sizeof(Column) * num_columns);
+	new_table.columns = malloc(sizeof(Column) * num_columns);
 	if (!new_table.columns)  {
 		ret_status.code = ERROR;
 		return ret_status;
@@ -154,7 +153,7 @@ Status create_column(char* name, Table* table, bool sorted) {
 
 	Column new_column;
 	strncpy(new_column.name, name, MAX_SIZE_NAME);
-	new_column.data = (int*) malloc(COLUMN_BASE_CAPACITY);
+	new_column.data = malloc(COLUMN_BASE_CAPACITY * sizeof *new_column.data);
 	new_column.capacity = COLUMN_BASE_CAPACITY;
 	new_column.length = 0;
 	table->columns[table->columns_size] = new_column;
@@ -166,12 +165,12 @@ Status create_column(char* name, Table* table, bool sorted) {
 	return ret_status;
 }
 
-/* load_db_bin(const char* db_name)
- * Loads a persisted database from disk. File is written in binary mode.
+/* open_db(const char* db_name)
+ * Opens a persisted database from disk. File is written in binary mode.
  * - db_name: The name of the database to be loaded
  * Returns the status of the operation; status.code = OK on success, ERROR on failure
  */
-Status load_db_bin(char* db_name) {
+Status open_db(char* db_name) {
 	Status ret_status;	
 
 	char* filename = construct_filename(db_name, true);
@@ -182,23 +181,23 @@ Status load_db_bin(char* db_name) {
 		return ret_status;
 	}
 	
-	current_db = (Db*) malloc(sizeof(Db));
+	current_db = malloc(sizeof *current_db);
 	fread(current_db, sizeof(Db), 1, f);	
-	current_db->tables = (Table*) malloc(sizeof(Table) * current_db->tables_capacity);
+	current_db->tables = malloc(sizeof(Table) * current_db->tables_capacity);
 
 	for (size_t i = 0; i < current_db->tables_size; i++) {
 		Table* current_table = &current_db->tables[i];
 		fread(current_table, sizeof(Table), 1, f);	
 		size_t num_columns = current_table->columns_size;
-		current_db->tables[i].columns = (Column*) malloc(sizeof(Column) * num_columns);
+		current_db->tables[i].columns = malloc(sizeof(Column) * num_columns);
 		for (size_t j = 0; j < num_columns; j++) {
 			Column* current_column = &current_table->columns[j];
 			fread(current_column, sizeof(Column), 1, f);
 
 			size_t column_length = current_column->length;
 			size_t column_capacity = current_column->capacity;
-			current_db->tables[i].columns[j].data = (int*) malloc(column_capacity);
-			fread(current_db->tables[i].columns[j].data, sizeof(int), column_length, f);
+			current_column->data = malloc(column_capacity * sizeof *current_column->data);
+			fread(current_db->tables[i].columns[j].data, sizeof *current_column->data, column_length, f);
 		}
 	}
 	fclose(f);
@@ -210,14 +209,18 @@ Status load_db_bin(char* db_name) {
 Status relational_insert(Table* table, int* values) {
 	Status ret_status;
 	for (size_t i = 0; i < table->columns_size; i++) {
-		if (table->columns[i].length == table->columns[i].capacity) {
-			ret_status = expand_column(&table->columns[i]);
-			if (ret_status.code != OK) {
+		Column* column = &table->columns[i];
+		if (column->length == column->capacity) {
+			int* new_data = realloc(column->data, column->capacity * 2 * sizeof *new_data);
+			if (!new_data) {
+				ret_status.code = ERROR;
 				return ret_status;
 			}
+			column->data = new_data;
+			column->capacity *= 2;
 		}
-		table->columns[i].data[table->length] = values[i];
-		table->columns[i].length++;
+		column->data[table->length] = values[i];
+		column->length++;
 	}	
 	table->length++;
 	
@@ -225,32 +228,14 @@ Status relational_insert(Table* table, int* values) {
 	return ret_status;
 }
 
-Status expand_column(Column* column) {
-	Status ret_status;
-	size_t new_capacity = column->capacity * 2; // double the capacity
-	int* new_data = (int*) malloc(sizeof(int) * new_capacity);
-	if (!new_data) {
-		ret_status.code = ERROR;
-		return ret_status; 
-	}
-	
-	for (size_t i = 0; i < column->length; i++) {
-		new_data[i] = column->data[i];
-	}
-	free(column->data);
-	column->data = new_data;
-	
-	return ret_status;
-}
-
 Column* select_all(Column* col, int low, int high, Status* status) {
-	Column* result = (Column*) malloc(sizeof(Column));
+	Column* result = malloc(sizeof(*result));
 	if (!result) {
 		status->code = ERROR;
 		return NULL;
 	}
 
-	result->data = (int*) malloc(sizeof(int) * col->length); 
+	result->data = malloc(sizeof(int) * col->length); 
 	if (!result->data) {
 		status->code = ERROR;
 		return NULL;
@@ -269,13 +254,13 @@ Column* select_all(Column* col, int low, int high, Status* status) {
 }
 
 Column* select_posn(Column* col, int* positions, int low, int high, Status* status) {
-	Column* result = (Column*) malloc(sizeof(Column));
+	Column* result = malloc(sizeof(*result));
 	if (!result) {
 		status->code = ERROR;
 		return NULL;
 	}
 
-	result->data = (int*) malloc(sizeof(int) * col->length); 
+	result->data = malloc(sizeof(int) * col->length); 
 	if (!result->data) {
 		status->code = ERROR;
 		return NULL;
@@ -294,13 +279,13 @@ Column* select_posn(Column* col, int* positions, int low, int high, Status* stat
 }
 
 Column* fetch(Column* col, Column* positions, Status* status) {
-	Column* result = (Column*) malloc(sizeof(Column));
+	Column* result = malloc(sizeof(*result));
 	if (!result) {
 		status->code = ERROR;
 		return NULL;
 	}
 
-	result->data = (int*) malloc(sizeof(int) * col->length); 
+	result->data = malloc(sizeof(int) * col->length); 
 	if (!result->data) {
 		status->code = ERROR;
 		return NULL;
@@ -362,27 +347,19 @@ void free_db(Db* db) {
 
 /* load_db_text(const char* db_name)
  * Loads a persisted database from disk. Format of the file should be a csv
- * TODO only loads first line with database metadata. 
  * - db_name: The name of the database to be loaded
  * Returns the status of the operation; status.code = OK on success, ERROR on failure
  */
 
-Status load(char* filename) {
+Status load(char* header_line, int* data, int data_length) {
 	Status ret_status;
 
-	FILE* f = fopen(filename, "r");
-	if (!f) {
-		log_err("DB could not be loaded from file %s.\n", filename);
-		return ret_status;
-	}
-	
 	// read in first line with db, table, col names and construct db
-	char buf[MAX_LINE_SIZE];
-	char* header_line = fgets(buf, MAX_LINE_SIZE, f); 
-	char* table_name = NULL, *token;
+	char* header_line_copy = strndup(header_line, strlen(header_line));
+	char* table_name = NULL, *token = NULL;
 	int num_cols = 0;	
 
-	while ((token = strsep(&header_line, ","))) {
+	while ((token = strsep(&header_line_copy, ","))) {
 		char* column_token = NULL;
 		int arg_index = 0;
 		while ((column_token = strsep(&token, "."))) {
@@ -408,21 +385,18 @@ Status load(char* filename) {
 	}
 
 	// load data line by line
-	char* data_line;
-	while ((data_line = fgets(buf, MAX_LINE_SIZE, f))) {
-		int data[num_cols];
-		char* data_token = NULL;
-		for (int i = 0; i < num_cols; i++) {
-			data_token = strsep(&data_line, ",");
-			data[i] = atoi(data_token);
+	char* data_line, *data_line_copy, *data_token;
+	int row[num_cols];
+	for (int i = 0; i < data_length; i += num_cols) {
+		for (int j = 0; j < num_cols; j++) {
+			row[j] = data[i+j]; 
 		}
-		ret_status = relational_insert(table, data);	
+		ret_status = relational_insert(table, row);	
 		if (ret_status.code != OK) {
+			log_err("Error loading database.\n");
 			return ret_status;
 		}
 	}
-
-	fclose(f);
 
 	log_info("DB LOADED:\nNAME: %s\n", current_db->name); // 
 	ret_status.code = OK;

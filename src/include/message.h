@@ -6,6 +6,7 @@
 typedef enum message_status {
     OK_DONE,
     OK_WAIT_FOR_RESPONSE,
+	OK_BEGIN_LOAD,
     UNKNOWN_COMMAND,
     QUERY_UNSUPPORTED,
     OBJECT_ALREADY_EXISTS,
@@ -17,14 +18,21 @@ typedef enum message_status {
     INDEX_ALREADY_EXISTS
 } message_status;
 
+typedef union message_payload {
+	char* text;
+	int* data;
+} message_payload;
+
 // message is a single packet of information sent between client/server.
 // message_status: defines the status of the message.
 // length: defines the length of the string message to be sent.
 // payload: defines the payload of the message.
 typedef struct message {
     message_status status;
+	int is_partitioned;
+	int partition_length;
     int length;
-    char* payload;
+    message_payload payload;
 } message;
 
 #endif

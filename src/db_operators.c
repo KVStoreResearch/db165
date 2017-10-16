@@ -10,7 +10,7 @@
  **/
 char* execute_db_operator(DbOperator* query) {
 	if (!query) 
-		return "";
+		return "-- Error";
 
 	switch (query->type) {
 		case CREATE:
@@ -56,7 +56,7 @@ char* execute_create_db(DbOperator* query) {
 		return "Could not complete create(db) query.";
 	}
 
-	return "";
+	return "-- DB created";
 }
 
 char* execute_create_tbl(DbOperator* query) {
@@ -68,7 +68,7 @@ char* execute_create_tbl(DbOperator* query) {
         return "Could not complete create(tbl) query";
     }
 
-	return "";
+	return "-- Table created";
 }
 
 char* execute_create_col(DbOperator* query) {
@@ -80,15 +80,11 @@ char* execute_create_col(DbOperator* query) {
         return "Could not complete create(col) query";
     }
 
-	return "";
+	return "-- Column created";
 }
 
+// TODO
 char* execute_open(DbOperator* query) {
-	char* filename = query->operator_fields.open_operator.filename;
-	Status ret_status = load(filename); 
-	if (ret_status.code != OK) {
-		return "Could not load db";
-	}
 	
 	return "";
 }
@@ -101,7 +97,7 @@ char* execute_insert(DbOperator* query) {
 		return ret_status.error_message;
 	}
 	
-	return "";
+	return "-- Insert executed";
 }
 
 // TODO
@@ -119,7 +115,7 @@ char* execute_select(DbOperator* query) {
 	GeneralizedColumnHandle* result_handle = lookup_client_handle(query->context, op.result_handle);
 	result_handle->generalized_column.column_pointer.column = result_col;
 
-	return "";
+	return "-- Select executed";
 }
 
 char* execute_fetch(DbOperator* query) {
@@ -141,31 +137,34 @@ char* execute_fetch(DbOperator* query) {
 	}
 	result_handle->generalized_column.column_pointer.column = result_col;
 
-	return "";
+	return "-- Fetch executed";
 }
 
 char* print_column(Column* column) {
-	int buf_capacity = MAX_LINE_SIZE;
+	int buf_capacity = DEFAULT_PRINT_BUFFER_SIZE;
 	int buf_size = 0;
-	char* buf = (char*) calloc(1, sizeof(char) * buf_capacity);
+	char* buf = calloc(1, buf_capacity);
 
 	for (size_t i = 0; i < column->length; i++) {
-		char* result = itoa(column->data[i]);
-		int len = strlen(result);
+		int len = column->data[i] < 0 ? 2 : 1;
+		int data_copy = column->data[i] < 0 ? column->data[i] * -1 : column->data[i] * 1;
+		data_copy /= 10;
+		while (data_copy > 0) {
+			len++;
+			data_copy /= 10;
+		}
 
 		if (buf_size + len >= buf_capacity) { // enlarge buffer size
-			char* new_buf = malloc(buf_capacity*2);
-			for (int j = 0; j < buf_size; j++) {
-				new_buf[j] = buf[j];
-			}	
-			free(buf);
+			char* new_buf = realloc(buf, buf_capacity * 2);
+			if (!new_buf) {
+				log_err("Could not reallocate bigger buffer for printing column %s.\n",
+						column->name);
+			}
 			buf = new_buf;
 			buf_capacity *= 2;
 		}
 
-		strncat(buf, result, len);
-		if (i < column->length - 1)
-			strncat(buf, "\n", 1);
+		sprintf(buf + buf_size, "%d%s", column->data[i], i < column->length - 1 ? "\n" : "\0");
 		buf_size += len + 1;
 	}
 
@@ -184,16 +183,18 @@ char* execute_print(DbOperator* query) {
 
 	//look for handle in column names in current_db
 	strsep(&handle, ".");
-	strsep(&handle, ".");
+	char* table_name = strsep(&handle, ".");
 	
 	for (size_t i = 0; i < current_db->tables_size; i++) {
-		for (size_t j = 0; j < current_db->tables[i].columns_size; j++) {
-			if (strcmp(handle, current_db->tables[i].columns[j].name) == 0) {
-				return print_column(&current_db->tables[i].columns[j]);
+		if (strncmp(table_name, current_db->tables[i].name, strlen(table_name)) == 0) {
+			for (size_t j = 0; j < current_db->tables[i].columns_size; j++) {
+				if (strncmp(handle, current_db->tables[i].columns[j].name, strlen(handle)) == 0) {
+					return print_column(&current_db->tables[i].columns[j]);
+				}
 			}
 		}
 	}
-	return "Could not find column to print";
+	return "-- Could not find column to print";
 }
 
 char* execute_shutdown() {
@@ -203,7 +204,7 @@ char* execute_shutdown() {
 	}
 	
 	exit(0);
-	return "";
+	return "-- DB shutdown";
 }
 
 void db_operator_free(DbOperator* query) {

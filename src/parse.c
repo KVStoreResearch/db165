@@ -41,12 +41,6 @@ char* next_token(char** tokenizer, message_status* status) {
 DbOperator* parse_command(char* query_command, message* send_message, int client_socket, ClientContext* context) {
     DbOperator *dbo = NULL;
 
-    if (strncmp(query_command, "--", 2) == 0) {
-        send_message->status = OK_DONE;
-        // The -- signifies a comment line, no operator needed.  
-        return NULL;
-    }
-
     char *equals_pointer = strchr(query_command, '=');
     char *handle = query_command;
     if (equals_pointer != NULL) {

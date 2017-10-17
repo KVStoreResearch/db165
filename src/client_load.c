@@ -137,7 +137,6 @@ int send_load_data(char* read_buffer, int client_socket)  {
 		else {
 			if (length_received < 0) {
 				log_err("Failed to receive message.");
-				free(buf);
 				return -1;
 			}
 		}
@@ -145,26 +144,22 @@ int send_load_data(char* read_buffer, int client_socket)  {
 
 	if (recv(client_socket, &recv_message, sizeof(message), 0) == -1) {
 		log_err("Could not receive confirmation of load completion.\n");
-		free(buf);
 		return -1;
 	}
 
 	if (recv_message.status != OK_DONE) {
 		log_err("Error occurred in loading file.\n");
-		free(buf);
 		return -1;
 	} else {
 		char* payload = malloc(recv_message.length + 1);
 		if (recv(client_socket, payload, recv_message.length, 0) == -1) {
 			log_err("Could not receive confirmation of load completion payload.\n");
-			free(buf);
 			return -1;
 		}
 		printf("%s", payload);
 		free(payload);
 	}
 
-	free(buf);
 	return 0;
 }
 

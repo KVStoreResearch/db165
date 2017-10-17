@@ -94,7 +94,9 @@ int main(void)
         if (output_str == NULL) {
             log_err("fgets failed.\n");
            break;
-        }
+        } else if (strncmp(read_buffer, "--", 2) == 0) {
+			continue;
+		}
 
         // Only process input that is greater than 2 character.
         // Convert to message and send the message and the

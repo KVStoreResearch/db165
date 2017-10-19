@@ -54,21 +54,28 @@ ClientContext* create_client_context() {
 }
 
 int send_result(int client_socket, message send_message, char* result) {
-	send_message.length = strlen(result);
-	char send_buffer[send_message.length + 1];
-	strcpy(send_buffer, result);
-	send_message.payload.text = send_buffer;
+	int total_length = strlen(result); 
+	int length_sent = 0;
 
-	// Send status of the received message (OK, UNKNOWN_QUERY, etc)
-	if (send(client_socket, &(send_message), sizeof(message), 0) == -1) {
-		log_err("Failed to send message.");
-		exit(1);
-	}
+	while (length_sent != total_length) {
+		send_message.length = total_length - length_sent > DEFAULT_RESULT_BUFFER_LENGTH
+			? DEFAULT_RESULT_BUFFER_LENGTH : total_length - length_sent;
+		send_message.status = total_length - length_sent > DEFAULT_RESULT_BUFFER_LENGTH
+			? OK_WAIT_FOR_RESPONSE : OK_DONE;
 
-	// Send response of request
-	if (send(client_socket, result, send_message.length, 0) == -1) {
-		log_err("Failed to send message.");
-		exit(1);
+		// Send status of the received message (OK, UNKNOWN_QUERY, etc)
+		if (send(client_socket, &(send_message), sizeof(message), 0) == -1) {
+			log_err("Failed to send message.");
+			exit(1);
+		}
+
+		// Send response of request
+		if (send(client_socket, result + length_sent, send_message.length, 0) == -1) {
+			log_err("Failed to send message.");
+			exit(1);
+		}
+
+		length_sent += send_message.length;
 	}
 }
 
@@ -136,26 +143,30 @@ int handle_client_load(int client_socket, ClientContext* context) {
 		log_err("Could not send client acknowledgment payload of load start.\n");
 		return -1;
 	}
-	
-	length_received = recv(client_socket, &recv_message, sizeof(message), 0);
-	if (length_received < 0) {
-		log_err("Client connection closed!\n");
-		exit(1);
-	} else if (length_received == 0) {
-		return -1;
-	} 
 
-	int total_length = recv_message.length;
+	int has_more = 1;
 	int total_length_received = 0;
-	int partition_length = recv_message.partition_length;
-	int* buf = malloc(total_length);
+	int buf_capacity = DEFAULT_LOAD_BUFFER_LENGTH;
+	int* buf = malloc(buf_capacity);
 	if (!buf) {
 		log_err("Could not allocate buffer for receiving data for load.\n");
 	}
 
-	while (total_length_received != total_length) {
-		int length_received = recv(client_socket, (char*) buf + total_length_received, 
-				partition_length, 0);
+	while ((length_received = recv(client_socket, &recv_message, sizeof(message), 0)) > 0
+			&& (recv_message.status == OK_WAIT_FOR_RESPONSE
+			|| recv_message.status == OK_DONE)) {
+
+		if (recv_message.length + total_length_received >= buf_capacity) {
+			int* new_buf = realloc(buf, buf_capacity * 2);
+			if (!new_buf) {
+				log_err("Could not reallocate buffer for receiving data for load.\n");
+			}
+			buf = new_buf;
+			buf_capacity *= 2;
+		}
+
+		length_received = recv(client_socket, (char*) buf + total_length_received, 
+				recv_message.length, 0);
 		if (length_received <= 0) {
 			log_err("Error in receiving load data.\n");
 			free(header_line);
@@ -171,11 +182,21 @@ int handle_client_load(int client_socket, ClientContext* context) {
 			free(header_line);
 			return -1;
 		}
-		total_length_received += length_received;
+		total_length_received += recv_message.length;
+
+		if (recv_message.status == OK_DONE) 
+			break;
 	}
 
+	if (length_received < 0 || recv_message.status != OK_DONE) {
+		log_err("Client connection closed!\n");
+		exit(1);
+	} else if (length_received == 0) {
+		return -1;
+	} 
+
 	send_message.status = OK_DONE;
-	send_message.payload.text = "File loaded!\n";
+	send_message.payload.text = "-- File loaded!\n";
 	send_message.length = strlen(send_message.payload.text);
 	if (send(client_socket, &send_message, sizeof(message), 0) == -1) {
 		log_err("Could not send confirmation of load completion.\n");
@@ -190,7 +211,7 @@ int handle_client_load(int client_socket, ClientContext* context) {
 		return -1;
 	} 
 
-	Status load_status = load(header_line, buf, total_length / sizeof(int));
+	Status load_status = load(header_line, buf, total_length_received/ sizeof(int));
 	if (load_status.code != OK) {
 		log_err("Error occured when loading the database.\n");
 		return -1;

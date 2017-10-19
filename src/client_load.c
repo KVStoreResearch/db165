@@ -91,8 +91,8 @@ int send_load_data(char* read_buffer, int client_socket)  {
 	char* header_line = strdup(text_buf);
 	free(text_buf);
 
-	int total_length_to_send = read_data(fp, buf);
-	if (total_length_to_send == -1) {
+	int total_length = read_data(fp, buf);
+	if (total_length == -1) {
 		log_err("Could not read data in from file.\n");
 		return -1;
 	}
@@ -107,25 +107,26 @@ int send_load_data(char* read_buffer, int client_socket)  {
 		return -1;
 	}
 
+
+	message send_message, recv_message;
 	int length_sent, length_received;
 	length_sent = length_received = 0;
-	message send_message, recv_message;
-	send_message.length = total_length_to_send;
-	send_message.partition_length = DEFAULT_PARTITION_LENGTH;
-	if (send(client_socket, &(send_message), sizeof(message), 0) == -1) {
-		log_err("Failed to send data for loading.\n");
-		return -1;
-	}
-
-	while (length_sent != total_length_to_send) {
-		int length_to_send = send_message.length - length_sent < DEFAULT_PARTITION_LENGTH 
-			? send_message.length - length_sent : DEFAULT_PARTITION_LENGTH;
-		int partition_length_sent = send(client_socket, (char*) buf + length_sent, length_to_send, 0);
-		if (partition_length_sent == -1) {
+	while (length_sent != total_length) {
+		send_message.length = total_length - length_sent > DEFAULT_LOAD_BUFFER_LENGTH
+			? DEFAULT_LOAD_BUFFER_LENGTH : total_length - length_sent;
+		send_message.status = total_length - length_sent > DEFAULT_LOAD_BUFFER_LENGTH 
+			? OK_WAIT_FOR_RESPONSE : OK_DONE;
+		if (send(client_socket, &(send_message), sizeof(message), 0) == -1) {
 			log_err("Failed to send data for loading.\n");
 			return -1;
 		}
-		length_sent += partition_length_sent;
+
+		if (send(client_socket, (char*) buf + length_sent, send_message.length, 0) == -1) {
+			log_err("Failed to send data for loading.\n");
+			return -1;
+		}
+
+		length_sent += send_message.length;
 
 		// Always wait for server response (even if it is just an OK message)
 		if ((length_received = recv(client_socket, &(recv_message), sizeof(message), 0)) > 0) {

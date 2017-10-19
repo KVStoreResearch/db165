@@ -29,8 +29,6 @@ typedef union message_payload {
 // payload: defines the payload of the message.
 typedef struct message {
     message_status status;
-	int is_partitioned;
-	int partition_length;
     int length;
     message_payload payload;
 } message;

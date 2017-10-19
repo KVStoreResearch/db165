@@ -124,32 +124,33 @@ int main(void)
 				exit(1);
 			}
 
-            // Always wait for server response (even if it is just an OK message)
-            if ((len = recv(client_socket, &(recv_message), sizeof(message), 0)) > 0) {
-                if ((recv_message.status == OK_WAIT_FOR_RESPONSE || recv_message.status == OK_DONE) &&
-                    (int) recv_message.length > 0) {
-                    // Calculate number of bytes in response package
-                    int num_bytes = (int) recv_message.length;
-                    char payload[num_bytes + 1];
 
-                    // Receive the payload and print it out
-                    if ((len = recv(client_socket, payload, num_bytes, 0)) > 0) {
-                        payload[num_bytes] = '\0';
-                        printf("%s\n", payload);
-                    }
-                }
-            }
-            else {
-                if (len < 0) {
-                    log_err("Failed to receive message.");
-                }
-                else {
-		            log_info("Server closed connection\n");
-		        }
-                exit(1);
-            }
+			// Always wait for server response (even if it is just an OK message)
+			while ((len = recv(client_socket, &(recv_message), sizeof(message), 0)) > 0
+					&& (recv_message.status == OK_WAIT_FOR_RESPONSE
+					|| recv_message.status == OK_DONE)) {
+				// Calculate number of bytes in response package
+				int length = (int) recv_message.length;
+				char payload[length + 1];
+
+				// Receive the payload and print it out
+				if ((len = recv(client_socket, payload, length, 0)) > 0) {
+					payload[length] = '\0';
+					printf("%s\n", payload);
+				}
+
+				if (recv_message.status == OK_DONE) 
+					break;
+			}
+
+			if (len < 0 || recv_message.status != OK_DONE) {
+				log_err("Failed to receive message.");
+				log_info("Server closed connection\n");
+				exit(1);
+			}
         }
     }
     close(client_socket);
     return 0;
 }
+

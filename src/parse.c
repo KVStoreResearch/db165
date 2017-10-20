@@ -1,3 +1,4 @@
+#define _BSD_SOURCE
 /* 
  * This file contains methods necessary to parse input from the client.
  * Mostly, functions in parse.c will take in string input and map these
@@ -363,7 +364,7 @@ DbOperator* parse_select(char* select_arguments, message* send_message) {
  * parse fetch
  */
 DbOperator* parse_fetch(char* fetch_arguments, message* send_message) {
-    char *tokenizer_copy, *to_free, *token;
+    char *tokenizer_copy, *to_free;
     tokenizer_copy = to_free = malloc(strlen(fetch_arguments)+1);
     strcpy(tokenizer_copy, fetch_arguments);
 

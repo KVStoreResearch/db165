@@ -1,3 +1,4 @@
+#define _BSD_SOURCE
 #define _X_OPEN_SOURCE
 #include <string.h>
 
@@ -8,7 +9,7 @@
  * Returns pointer to a Table given fully qualified column name
  */
 Table* lookup_table(char *name) {
-	char* name_copy = strndup(name, strlen(name));
+	char* name_copy = strdup(name);
 	char* db_name = strsep(&name_copy, "."); // advance name to just the table_name 
 	if (strcmp(db_name, current_db->name) != 0)
 		return NULL;
@@ -26,7 +27,7 @@ Table* lookup_table(char *name) {
  * Returns pointer to a Column given fully qualified column name
  */
 Column* lookup_column(char* name) {
-	char* name_copy = strndup(name, strlen(name));
+	char* name_copy = strdup(name);
 	char* db_name = strsep(&name_copy, ".");
 	char* table_name = strsep(&name_copy, ".");
 	char* db_table_name = (char*) malloc(strlen(db_name) + strlen(table_name) + 1);

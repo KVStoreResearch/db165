@@ -1,3 +1,4 @@
+#define _BSD_SOURCE
 #include <string.h>
 
 #include "client_context.h"
@@ -87,7 +88,7 @@ char* execute_create_col(DbOperator* query) {
 
 // TODO
 char* execute_open(DbOperator* query) {
-	
+	(void) query;	
 	return "";
 }
 

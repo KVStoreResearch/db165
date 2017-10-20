@@ -1,3 +1,4 @@
+#define _BSD_SOURCE
 #include <string.h> 
 
 #include "cs165_api.h"
@@ -355,7 +356,7 @@ Status load(char* header_line, int* data, int data_length) {
 	Status ret_status;
 
 	// read in first line with db, table, col names and construct db
-	char* header_line_copy = strndup(header_line, strlen(header_line));
+	char* header_line_copy = strdup(header_line);
 	char* table_name = NULL, *token = NULL;
 	int num_cols = 0;	
 
@@ -385,7 +386,6 @@ Status load(char* header_line, int* data, int data_length) {
 	}
 
 	// load data line by line
-	char* data_line, *data_line_copy, *data_token;
 	int row[num_cols];
 	for (int i = 0; i < data_length; i += num_cols) {
 		for (int j = 0; j < num_cols; j++) {

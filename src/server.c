@@ -51,6 +51,7 @@ ClientContext* create_client_context() {
 	context->chandle_slots = MAX_NUM_HANDLES;
 	context->chandle_table = (GeneralizedColumnHandle*) malloc(sizeof(GeneralizedColumnHandle)
 			* context->chandle_slots);
+	return context;
 }
 
 int send_result(int client_socket, message send_message, char* result) {
@@ -61,22 +62,23 @@ int send_result(int client_socket, message send_message, char* result) {
 		send_message.length = total_length - length_sent > DEFAULT_RESULT_BUFFER_LENGTH
 			? DEFAULT_RESULT_BUFFER_LENGTH : total_length - length_sent;
 		send_message.status = total_length - length_sent > DEFAULT_RESULT_BUFFER_LENGTH
-			? OK_WAIT_FOR_RESPONSE : OK_DONE;
+			? OK_WAIT_FOR_RESPONSE : send_message.status;
 
 		// Send status of the received message (OK, UNKNOWN_QUERY, etc)
 		if (send(client_socket, &(send_message), sizeof(message), 0) == -1) {
 			log_err("Failed to send message.");
-			exit(1);
+			return 1;
 		}
 
 		// Send response of request
 		if (send(client_socket, result + length_sent, send_message.length, 0) == -1) {
 			log_err("Failed to send message.");
-			exit(1);
+			return 1;
 		}
 
 		length_sent += send_message.length;
 	}
+	return 0;
 }
 
 int handle_client_default(int client_socket, ClientContext* client_context) {
@@ -113,7 +115,7 @@ int handle_client_default(int client_socket, ClientContext* client_context) {
 	return 0;
 }
 
-int handle_client_load(int client_socket, ClientContext* context) {
+int handle_client_load(int client_socket) {
 	message recv_message, send_message;
 	int length_received = recv(client_socket, &recv_message, sizeof(message), 0);
 	if (length_received < 0) {
@@ -144,7 +146,6 @@ int handle_client_load(int client_socket, ClientContext* context) {
 		return -1;
 	}
 
-	int has_more = 1;
 	int total_length_received = 0;
 	int buf_capacity = DEFAULT_LOAD_BUFFER_LENGTH;
 	int* buf = malloc(buf_capacity);
@@ -239,7 +240,7 @@ void handle_client(int client_socket) {
     do {
 		switch (current_mode) {
 			case LOAD:
-				done = handle_client_load(client_socket, client_context);
+				done = handle_client_load(client_socket);
 				break;
 			default:
 				done = handle_client_default(client_socket, client_context);

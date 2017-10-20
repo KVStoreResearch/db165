@@ -57,12 +57,13 @@ ClientContext* create_client_context() {
 int send_result(int client_socket, message send_message, char* result) {
 	int total_length = strlen(result); 
 	int length_sent = 0;
+	message_status final_status = send_message.status;
 
 	while (length_sent != total_length) {
 		send_message.length = total_length - length_sent > DEFAULT_RESULT_BUFFER_LENGTH
 			? DEFAULT_RESULT_BUFFER_LENGTH : total_length - length_sent;
 		send_message.status = total_length - length_sent > DEFAULT_RESULT_BUFFER_LENGTH
-			? OK_WAIT_FOR_RESPONSE : send_message.status;
+			? OK_WAIT_FOR_RESPONSE : final_status;
 
 		// Send status of the received message (OK, UNKNOWN_QUERY, etc)
 		if (send(client_socket, &(send_message), sizeof(message), 0) == -1) {
@@ -135,7 +136,7 @@ int handle_client_load(int client_socket) {
 	} 
 
 	send_message.status = OK_WAIT_FOR_RESPONSE;
-	send_message.payload.text = "Beginning load...\n";
+	send_message.payload.text = "-- Beginning load...\n";
 	send_message.length = strlen(send_message.payload.text);
 	if (send(client_socket, &send_message, sizeof(message), 0) == -1) {
 		log_err("Could not send client acknowledgment of load start.\n");

@@ -136,11 +136,13 @@ int main(void)
 				// Receive the payload and print it out
 				if ((len = recv(client_socket, payload, length, 0)) > 0) {
 					payload[length] = '\0';
-					printf("%s\n", payload);
+					printf("%s", payload);
 				}
 
-				if (recv_message.status == OK_DONE) 
+				if (recv_message.status == OK_DONE)  {
+					printf("\n");
 					break;
+				}
 			}
 
 			if (len < 0 || recv_message.status != OK_DONE) {
@@ -150,7 +152,7 @@ int main(void)
 			}
         }
     }
-    close(client_socket);
+    //close(client_socket);
     return 0;
 }
 

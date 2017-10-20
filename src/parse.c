@@ -437,6 +437,7 @@ DbOperator* parse_print(char* print_arguments, message* send_message) {
 	DbOperator* dbo = (DbOperator*) malloc(sizeof(DbOperator));	
 	dbo->type = PRINT;
 	dbo->operator_fields.print_operator.handle = handle;
+	send_message->status = OK_DONE;
 
 	return dbo;
 	}

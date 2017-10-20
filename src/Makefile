@@ -61,6 +61,8 @@ clean:
 	rm -f client server *.o *~ *.bak core *.core cs165_unix_socket
 	rm -rf .deps
 	rm -rf data/.session data/*\.bin
+	rm -f *\.bin
+	rm -f .session
 
 distclean: clean
 	rm -rf $(DEPSDIR)

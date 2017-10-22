@@ -48,7 +48,6 @@ DbOperator* parse_command(char* query_command, message* send_message, int client
         // handle exists, store here. 
         *equals_pointer = '\0';
         cs165_log(stdout, "FILE HANDLE: %s\n", handle);
-		add_handle(context, handle, false);
         query_command = ++equals_pointer;
     } else {
         handle = NULL;
@@ -67,13 +66,17 @@ DbOperator* parse_command(char* query_command, message* send_message, int client
         query_command += 17;
         dbo = parse_insert(query_command, send_message);
     } else if (strncmp(query_command, "select", 6) == 0) {
+		add_handle(context, handle, false);
 		query_command += 6;
 		dbo = parse_select(query_command, send_message);
-		dbo->operator_fields.select_operator.result_handle = handle;
+		if (dbo)
+			dbo->operator_fields.select_operator.result_handle = handle;
 	} else if (strncmp(query_command, "fetch", 5) == 0) {
+		add_handle(context, handle, false);
 		query_command += 5;
 		dbo = parse_fetch(query_command, send_message);
-		dbo->operator_fields.fetch_operator.result_handle = handle;
+		if (dbo)
+			dbo->operator_fields.fetch_operator.result_handle = handle;
 	} else if (strncmp(query_command, "print", 5) == 0) {
 		query_command += 5;
 		dbo = parse_print(query_command, send_message);
@@ -331,7 +334,7 @@ DbOperator* parse_select(char* select_arguments, message* send_message) {
 
 	// lookup the table and make sure it exists. 
 	Column* select_column = lookup_column(column_name);
-	if (select_column == NULL) {
+	if (!select_column) {
 		send_message->status = OBJECT_NOT_FOUND;
 		return NULL;
 	}
@@ -383,7 +386,7 @@ DbOperator* parse_fetch(char* fetch_arguments, message* send_message) {
 
 	// lookup the table and make sure it exists. 
 	Column* fetch_column = lookup_column(column_name);
-	if (fetch_column == NULL) {
+	if (!fetch_column) {
 		send_message->status = OBJECT_NOT_FOUND;
 		return NULL;
 	}

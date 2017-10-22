@@ -44,8 +44,7 @@ static mode current_mode = DEFAULT;
 ClientContext* create_client_context() {
 	ClientContext* context = (ClientContext*) malloc(sizeof(ClientContext));
 	if (!context) {
-		log_err("Could not create client context.\n");
-		exit(1);
+		return NULL;
 	}
 	context->chandles_in_use = 0;
 	context->chandle_slots = MAX_NUM_HANDLES;
@@ -85,10 +84,8 @@ int send_result(int client_socket, message send_message, char* result) {
 int handle_client_default(int client_socket, ClientContext* client_context) {
 	message recv_message;
 	int length = recv(client_socket, &recv_message, sizeof(message), 0);
-	if (length < 0) {
+	if (length <=  0) {
 		log_err("Client connection closed!\n");
-		exit(1);
-	} else if (length == 0) {
 		return 1;
 	}
 
@@ -98,7 +95,9 @@ int handle_client_default(int client_socket, ClientContext* client_context) {
 	recv_message.payload.text[recv_message.length] = '\0';
 	
 	message send_message;
-	char* result = NULL;
+	send_message.status = OK_DONE;
+	char* result = "-- Query unsupported";
+	int shutdown = 0;
 	if (strncmp(recv_message.payload.text, BEGIN_LOAD_MESSAGE, 
 				strlen(BEGIN_LOAD_MESSAGE)) == 0) {
 		current_mode = LOAD;
@@ -108,22 +107,26 @@ int handle_client_default(int client_socket, ClientContext* client_context) {
 		// Parse command
 		DbOperator* query = parse_command(recv_message.payload.text, &send_message, 
 				client_socket, client_context);
-		// Handle request
-		result = execute_db_operator(query);
-		db_operator_free(query);
+		if (query) {
+			shutdown = query->type == SHUTDOWN ? 1 : 0;
+			result = execute_db_operator(query);
+			db_operator_free(query);
+		}
 	}
 	send_result(client_socket, send_message, result);
+	if (shutdown) {
+		exit(0);
+	}
+
 	return 0;
 }
 
 int handle_client_load(int client_socket) {
 	message recv_message, send_message;
 	int length_received = recv(client_socket, &recv_message, sizeof(message), 0);
-	if (length_received < 0) {
+	if (length_received <= 0) {
 		log_err("Client connection closed!\n");
-		exit(1);
-	} else if (length_received == 0) {
-		return -1;
+		return 1;
 	} 
 
 	char* header_line = malloc(recv_message.length);
@@ -237,6 +240,10 @@ void handle_client(int client_socket) {
 
     // create the client context here
     ClientContext* client_context = create_client_context();
+	if (!client_context) {
+		log_err("Could not create client context.\n");
+		exit(1);
+	}
 
     do {
 		switch (current_mode) {
@@ -275,14 +282,14 @@ int setup_server() {
     strncpy(local.sun_path, SOCK_PATH, strlen(SOCK_PATH) + 1);
     unlink(local.sun_path);
 
-    /*
+    
     int on = 1;
     if (setsockopt(server_socket, SOL_SOCKET, SO_REUSEADDR, (char *)&on, sizeof(on)) < 0)
     {
         log_err("L%d: Failed to set socket as reusable.\n", __LINE__);
         return -1;
     }
-    */
+    
 
     len = strlen(local.sun_path) + sizeof(local.sun_family) + 1;
     if (bind(server_socket, (struct sockaddr *)&local, len) == -1) {
@@ -322,13 +329,17 @@ int main(void)
     socklen_t t = sizeof(remote);
     int client_socket = 0;
 
-    if ((client_socket = accept(server_socket, (struct sockaddr *)&remote, &t)) == -1) {
-        log_err("L%d: Failed to accept a new connection.\n", __LINE__);
-        exit(1);
-    }
+	while (true) {
+		if ((client_socket = accept(server_socket, (struct sockaddr *)&remote, &t)) == -1) {
+			log_err("L%d: Failed to accept a new connection.\n", __LINE__);
+			exit(1);
+		}
 
-	// Handle client messages
-    handle_client(client_socket);
+		// Handle client messages
+		handle_client(client_socket);
+	}
 
     return 0;
 }
+
+

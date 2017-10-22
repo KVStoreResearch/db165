@@ -145,14 +145,16 @@ int main(void)
 				}
 			}
 
-			if (len < 0 || recv_message.status != OK_DONE) {
-				log_err("Failed to receive message.");
-				log_info("Server closed connection\n");
+			if (len < 0) {
+				log_err("Server closed connection\n");
+				exit(1);
+			} else if (recv_message.status != OK_DONE) {
+				log_err("Server could not complete request\n");
 				exit(1);
 			}
         }
     }
-    //close(client_socket);
+    close(client_socket);
     return 0;
 }
 

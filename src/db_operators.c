@@ -14,6 +14,8 @@
 char* execute_db_operator(DbOperator* query) {
 	if (!query) 
 		return "-- Error";
+	if (!current_db && query->type != CREATE) 
+		return "-- No currently loaded DB";
 
 	switch (query->type) {
 		case CREATE:
@@ -187,6 +189,8 @@ char* execute_print(DbOperator* query) {
 	//look for handle in column names in current_db
 	strsep(&handle, ".");
 	char* table_name = strsep(&handle, ".");
+	if (!table_name) 
+		return "-- Could not find column/handle to print.";
 	
 	for (size_t i = 0; i < current_db->tables_size; i++) {
 		if (strncmp(table_name, current_db->tables[i].name, strlen(table_name)) == 0) {
@@ -206,7 +210,6 @@ char* execute_shutdown() {
 		return "Could not sync DB to disk.";
 	}
 	
-	exit(0);
 	return "-- DB shutdown";
 }
 

@@ -108,6 +108,7 @@ int main(void)
 				strncpy(read_buffer_copy, read_buffer, strlen(read_buffer));
 				if (send_load_data(read_buffer_copy, client_socket) == -1) {
 					log_err("Could not load data.");
+					printf("-- Could not load data.");
 				}
 				continue;
 			} 

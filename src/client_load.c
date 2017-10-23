@@ -22,10 +22,12 @@ int send_text_data(int client_socket, char* payload_text, message_status expecte
 
 	if (send(client_socket, &send_message, sizeof(message), 0) == -1) {
 		log_err("Could not send data to server.\n");
+		printf("Could not send data to server.\n");
 		return -1;
 	}
 	if (send(client_socket, send_message.payload.text, send_message.length, 0) == -1) {
 		log_err("Could not send data to server.\n");
+		printf("Could not send data to server.\n");
 		return -1;
 	}
 
@@ -33,6 +35,7 @@ int send_text_data(int client_socket, char* payload_text, message_status expecte
 	if ((len = recv(client_socket, &(recv_message), sizeof(message), 0)) > 0) {
 		if ((int) len > 0 && recv_message.status != expected_status) {
 			log_err("Error occurred when loading/sending file to server.\n");
+			printf("Error occurred when loading/sending file to server.\n");
 			return -1;
 		}
 		// Calculate number of bytes in response package
@@ -48,6 +51,7 @@ int send_text_data(int client_socket, char* payload_text, message_status expecte
 	else {
 		if (len < 0) {
 			log_err("Failed to receive message.");
+			printf("Failed to receive message.");
 			return -1;
 		}
 		else {
@@ -60,32 +64,38 @@ int send_text_data(int client_socket, char* payload_text, message_status expecte
 }
 
 int send_load_data(char* read_buffer, int client_socket)  {
+	printf("-- Starting to send load data\n");
 	char* filename = extract_load_filename(read_buffer);
 	FILE* fp = fopen(filename, "r");
 	if (!fp) { 
 		log_err("Client could not open file %s for loading.\n", filename);
+		printf("--Client could not open file %s for loading.\n", filename);
 		return -1;
 	}
 
 	struct stat file_stat;
 	if (stat(filename, &file_stat) == -1) {
 		log_err("Could not acquire file stats.\n Error: %s", strerror(errno));
+		printf("--Could not acquire file stats.\n Error: %s", strerror(errno));
 		return -1;
 	}
 
 	int* buf = malloc(file_stat.st_size);	
 	if (!buf) { 
 		log_err("Client could not allocate buffer for reading from loaded file.\n");
+		printf("--Client could not allocate buffer for reading from loaded file.\n");
 		return -1;
 	}
 
 	char* text_buf = malloc(DEFAULT_BUFFER_SIZE);
 	if (!text_buf) { 
 		log_err("Client could not allocate buffer for reading header from loaded file.\n");
+		printf("-- Client could not allocate buffer for reading header from loaded file.\n");
 		return -1;
 	}
 	if (!fgets(text_buf, DEFAULT_BUFFER_SIZE, fp)) {
 		log_err("Could not read header line of file.\n");	
+		printf("-- Could not read header line of file.\n");	
 		return -1;
 	}
 	char* header_line = strdup(text_buf);
@@ -94,16 +104,19 @@ int send_load_data(char* read_buffer, int client_socket)  {
 	int total_length = read_data(fp, buf);
 	if (total_length == -1) {
 		log_err("Could not read data in from file.\n");
+		printf("-- Could not read data in from file.\n");
 		return -1;
 	}
 
 	if (send_text_data(client_socket, BEGIN_LOAD_MESSAGE, OK_BEGIN_LOAD) == -1) {
 		log_err("Error occured when sending load initilization message to server.\n");
+		printf("-- Error occured when sending load initilization message to server.\n");
 		return -1;
 	}
 
 	if (send_text_data(client_socket, header_line, OK_WAIT_FOR_RESPONSE) == -1) {
 		log_err("Error occured when sending load initilization message to server.\n");
+		printf("-- Error occured when sending load initilization message to server.\n");
 		return -1;
 	}
 
@@ -118,11 +131,13 @@ int send_load_data(char* read_buffer, int client_socket)  {
 			? OK_WAIT_FOR_RESPONSE : OK_DONE;
 		if (send(client_socket, &(send_message), sizeof(message), 0) == -1) {
 			log_err("Failed to send data for loading.\n");
+			printf("-- Failed to send data for loading.\n");
 			return -1;
 		}
 
 		if (send(client_socket, (char*) buf + length_sent, send_message.length, 0) == -1) {
 			log_err("Failed to send data for loading.\n");
+			printf("Failed to send data for loading.\n");
 			return -1;
 		}
 
@@ -132,12 +147,14 @@ int send_load_data(char* read_buffer, int client_socket)  {
 		if ((length_received = recv(client_socket, &(recv_message), sizeof(message), 0)) > 0) {
 			if (recv_message.status != OK_WAIT_FOR_RESPONSE) {
 				log_err("Error occurred when loading/sending file to server.\n");
+				printf("Error occurred when loading/sending file to server.\n");
 				return -1;
 			}
 		}
 		else {
 			if (length_received < 0) {
 				log_err("Failed to receive message.");
+				printf("Failed to receive message.");
 				return -1;
 			}
 		}
@@ -145,16 +162,19 @@ int send_load_data(char* read_buffer, int client_socket)  {
 
 	if (recv(client_socket, &recv_message, sizeof(message), 0) == -1) {
 		log_err("Could not receive confirmation of load completion.\n");
+		printf("Could not receive confirmation of load completion.\n");
 		return -1;
 	}
 
 	if (recv_message.status != OK_DONE) {
 		log_err("Error occurred in loading file.\n");
+		printf("Error occurred in loading file.\n");
 		return -1;
 	} else {
 		char* payload = malloc(recv_message.length + 1);
 		if (recv(client_socket, payload, recv_message.length, 0) == -1) {
 			log_err("Could not receive confirmation of load completion payload.\n");
+			printf("Could not receive confirmation of load completion payload.\n");
 			return -1;
 		}
 		printf("%s", payload);

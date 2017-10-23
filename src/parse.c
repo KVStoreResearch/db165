@@ -40,6 +40,8 @@ char* next_token(char** tokenizer, message_status* status) {
  * Returns a db_operator.
  **/
 DbOperator* parse_command(char* query_command, message* send_message, int client_socket, ClientContext* context) {
+    cs165_log(stdout, "QUERY: %s\n", query_command);
+
     DbOperator *dbo = NULL;
 
     char *equals_pointer = strchr(query_command, '=');
@@ -52,8 +54,6 @@ DbOperator* parse_command(char* query_command, message* send_message, int client
     } else {
         handle = NULL;
     }
-
-    cs165_log(stdout, "QUERY: %s\n", query_command);
 
     send_message->status = OK_DONE;
     query_command = trim_whitespace(query_command);

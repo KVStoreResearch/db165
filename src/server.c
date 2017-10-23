@@ -101,7 +101,7 @@ int handle_client_default(int client_socket, ClientContext* client_context) {
 	if (strncmp(recv_message.payload.text, BEGIN_LOAD_MESSAGE, 
 				strlen(BEGIN_LOAD_MESSAGE)) == 0) {
 		current_mode = LOAD;
-		result = "Load message received!";
+		result = "-- Load message received!";
 		send_message.status = OK_BEGIN_LOAD;
 	} else {
 		// Parse command
@@ -139,7 +139,7 @@ int handle_client_load(int client_socket) {
 	} 
 
 	send_message.status = OK_WAIT_FOR_RESPONSE;
-	send_message.payload.text = "-- Beginning load...\n";
+	send_message.payload.text = "-- Beginning load...";
 	send_message.length = strlen(send_message.payload.text);
 	if (send(client_socket, &send_message, sizeof(message), 0) == -1) {
 		log_err("Could not send client acknowledgment of load start.\n");

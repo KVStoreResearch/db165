@@ -69,14 +69,14 @@ int send_load_data(char* read_buffer, int client_socket)  {
 	FILE* fp = fopen(filename, "r");
 	if (!fp) { 
 		log_err("Client could not open file %s for loading.\n", filename);
-		printf("-- Client could not open file %s for loading.\n", filename);
+		printf("--Client could not open file %s for loading.\n", filename);
 		return -1;
 	}
 
 	struct stat file_stat;
 	if (stat(filename, &file_stat) == -1) {
 		log_err("Could not acquire file stats.\n Error: %s", strerror(errno));
-		printf("-- Could not acquire file stats.\n Error: %s", strerror(errno));
+		printf("--Could not acquire file stats.\n Error: %s", strerror(errno));
 		return -1;
 	}
 
@@ -200,21 +200,13 @@ int read_data(FILE* fp, int* buf) {
 
 char* extract_load_filename(char* buffer) {
 	trim_newline(buffer);
-	printf("-- Buffer to extract filename from : %s\n", buffer);
 	if (strncmp(buffer, "load(", 5) != 0) {
-		printf("-- First 5 chars were not load(\n");
 		return NULL;
 	}
 	buffer += 5;
 	trim_quotes(buffer);
 	trim_whitespace(buffer);
-
-	int last_char_ix = strlen(buffer) - 1;
-	if (buffer[last_char_ix] != ')') {
-		printf("-- Last char was not )\n");
-		return NULL;
-	}
-	buffer[last_char_ix] = '\0';
+	trim_parenthesis(buffer);
 	
 	return buffer;
 }

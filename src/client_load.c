@@ -200,13 +200,12 @@ int read_data(FILE* fp, int* buf) {
 
 char* extract_load_filename(char* buffer) {
 	trim_newline(buffer);
-	if (strncmp(buffer, "load(", 5) != 0) {
+	if (strncmp(buffer, "load", 4) != 0) {
 		return NULL;
 	}
-	buffer += 5;
+	buffer += 4;
+	trim_parenthesis(buffer);
 	trim_quotes(buffer);
 	trim_whitespace(buffer);
-	trim_parenthesis(buffer);
-	
 	return buffer;
 }

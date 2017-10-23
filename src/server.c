@@ -122,6 +122,7 @@ int handle_client_default(int client_socket, ClientContext* client_context) {
 }
 
 int handle_client_load(int client_socket) {
+	log_err("LOADING!\n"); // for debugging testing server
 	message recv_message, send_message;
 	int length_received = recv(client_socket, &recv_message, sizeof(message), 0);
 	if (length_received <= 0) {

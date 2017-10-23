@@ -105,7 +105,7 @@ int main(void)
         if (send_message.length > 1) {
 			if (strncmp(read_buffer, "load", 4) == 0) {
 				char read_buffer_copy[DEFAULT_STDIN_BUFFER_SIZE];
-				strncpy(read_buffer_copy, read_buffer, strlen(read_buffer));
+				strncpy(read_buffer_copy, read_buffer, strlen(read_buffer) + 1);
 				if (send_load_data(read_buffer_copy, client_socket) == -1) {
 					log_err("Could not load data.");
 					printf("-- Could not load data.");

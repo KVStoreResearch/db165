@@ -60,7 +60,7 @@ server: server.o parse.o utils.o db_manager.o client_context.o db_operators.o
 clean:
 	rm -f client server *.o *~ *.bak core *.core cs165_unix_socket
 	rm -rf .deps
-	rm -rf data/.session data/*\.bin
+	rm -rf *\.bin *\.session
 
 distclean: clean
 	rm -rf $(DEPSDIR)

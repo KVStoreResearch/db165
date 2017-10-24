@@ -82,7 +82,20 @@ DbOperator* parse_command(char* query_command, message* send_message, int client
 		dbo = parse_print(query_command, send_message);
 	} else if (strncmp(query_command, "shutdown", 8) == 0) {
 		dbo = parse_shutdown(send_message);
-	} 
+	} else if (strncmp(query_command, "avg", 3) == 0) {
+		add_handle(context, handle, false);
+		query_command += 3;
+		dbo = parse_avg(query_command, send_message);
+		if (dbo)
+			dbo->operator_fields.average_operator.result_handle = handle;
+	} else if (strncmp(query_command, "sum", 3) == 0) {
+		add_handle(context, handle, false);
+		query_command += 3;
+		dbo = parse_sum(query_command, send_message);
+		if (dbo)
+			dbo->operator_fields.sum_operator.result_handle = handle;
+	}
+
 
     if (dbo == NULL) {
         return dbo;
@@ -443,7 +456,73 @@ DbOperator* parse_print(char* print_arguments, message* send_message) {
 	send_message->status = OK_DONE;
 
 	return dbo;
+}
+
+DbOperator* parse_avg(char* avg_arguments, message* send_message) {
+    char *tokenizer_copy, *to_free;
+    tokenizer_copy = to_free = malloc((strlen(avg_arguments)+1) * sizeof(char));
+    strcpy(tokenizer_copy, avg_arguments);
+
+    // check for leading '('
+    if (strncmp(tokenizer_copy, "(", 1) != 0) {
+		send_message->status = UNKNOWN_COMMAND;
+		return NULL;
+    }
+	tokenizer_copy++;
+	char** command_index = &tokenizer_copy;
+
+	char* handle = next_token(command_index, &send_message->status);
+	if (send_message->status == INCORRECT_FORMAT) {
+		return NULL;
 	}
+
+	int last_char = strlen(handle) - 1;
+	if (last_char < 0 || handle[last_char] != ')') {
+		send_message->status = INCORRECT_FORMAT;
+		return NULL;
+	}
+	handle[last_char] = '\0';
+
+	DbOperator* dbo = (DbOperator*) malloc(sizeof(DbOperator));	
+	dbo->type = AVERAGE;
+	dbo->operator_fields.average_operator.handle = handle;
+	send_message->status = OK_DONE;
+	
+	return dbo;
+}
+
+DbOperator* parse_sum(char* sum_arguments, message* send_message) {
+    char *tokenizer_copy, *to_free;
+    tokenizer_copy = to_free = malloc((strlen(sum_arguments)+1) * sizeof(char));
+    strcpy(tokenizer_copy, sum_arguments);
+
+    // check for leading '('
+    if (strncmp(tokenizer_copy, "(", 1) != 0) {
+		send_message->status = UNKNOWN_COMMAND;
+		return NULL;
+    }
+	tokenizer_copy++;
+	char** command_index = &tokenizer_copy;
+
+	char* handle = next_token(command_index, &send_message->status);
+	if (send_message->status == INCORRECT_FORMAT) {
+		return NULL;
+	}
+
+	int last_char = strlen(handle) - 1;
+	if (last_char < 0 || handle[last_char] != ')') {
+		send_message->status = INCORRECT_FORMAT;
+		return NULL;
+	}
+	handle[last_char] = '\0';
+
+	DbOperator* dbo = (DbOperator*) malloc(sizeof(DbOperator));	
+	dbo->type = SUM;
+	dbo->operator_fields.sum_operator.handle = handle;
+	send_message->status = OK_DONE;
+	
+	return dbo;
+}
 
 DbOperator* parse_shutdown(message* send_message) {
 	DbOperator* dbo = malloc(sizeof(DbOperator));

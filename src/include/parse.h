@@ -22,5 +22,10 @@ DbOperator* parse_fetch(char* fetch_arguments, message* send_message);
 
 DbOperator* parse_print(char* print_arguments, message* send_message);
 
+DbOperator* parse_avg(char* avg_arguments, message* send_message);
+
+DbOperator* parse_sum(char* sum_arguments, message* send_message);
+
 DbOperator* parse_shutdown(message* send_message);
+
 #endif

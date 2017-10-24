@@ -1,6 +1,5 @@
 #ifndef DB_OPERATORS_H__
 #define DB_OPERATORS_H__
-#include "cs165_api.h"
 
 char* execute_create(DbOperator* query);
 
@@ -19,6 +18,10 @@ char* execute_select(DbOperator* query);
 char* execute_fetch(DbOperator* query);
 
 char* execute_print(DbOperator* query);
+
+char* execute_average(DbOperator* query);
+
+char* execute_sum(DbOperator* query);
 
 char* execute_shutdown();
 #endif

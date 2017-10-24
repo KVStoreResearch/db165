@@ -2,6 +2,7 @@
 #include <string.h>
 
 #include "client_context.h"
+#include "cs165_api.h"
 #include "db_operators.h"
 #include "utils.h"
 
@@ -30,6 +31,10 @@ char* execute_db_operator(DbOperator* query) {
 			return execute_fetch(query);
 		case PRINT:
 			return execute_print(query);
+		case AVERAGE:
+			return execute_average(query);
+		case SUM:
+			return execute_sum(query);
 		case SHUTDOWN:
 			return execute_shutdown();
 		default:
@@ -105,7 +110,7 @@ char* execute_insert(DbOperator* query) {
 	return "-- Insert executed";
 }
 
-// TODO
+// TODO fetch-select
 char* execute_select(DbOperator* query) {
 	Status ret_status;
 	SelectOperator op = query->operator_fields.select_operator;
@@ -119,6 +124,7 @@ char* execute_select(DbOperator* query) {
 
 	GeneralizedColumnHandle* result_handle = lookup_client_handle(query->context, op.result_handle);
 	result_handle->generalized_column.column_pointer.column = result_col;
+	result_handle->generalized_column.column_type = COLUMN;
 
 	return "-- Select executed";
 }
@@ -141,6 +147,7 @@ char* execute_fetch(DbOperator* query) {
 		return "Error: could not find results vector";
 	}
 	result_handle->generalized_column.column_pointer.column = result_col;
+	result_handle->generalized_column.column_type = COLUMN;
 
 	return "-- Fetch executed";
 }
@@ -176,13 +183,44 @@ char* print_column(Column* column) {
 	return buf;
 }
 
+char* print_result(Result* result) {
+	char* buf = calloc(1, DEFAULT_PRINT_BUFFER_SIZE);
+	switch (result->data_type) {
+		case FLOAT:
+			if (sprintf(buf, "%.2f\n", *((double*) result->payload)) < 0)
+				return "Could not print result.";
+			break;
+		case LONG:
+			if (sprintf(buf, "%lu\n", *((long*) result->payload)) < 0)
+				return "Could not print result.";
+			break;
+		default: //default case is data type INT
+			if (sprintf(buf, "%d\n", *((int*) result->payload)) < 0)
+				return "Could not print result.";
+			break;
+	}
+	
+	return buf;
+}
+
+char* print(GeneralizedColumn generalized_column) {
+	switch (generalized_column.column_type) {
+		case COLUMN:
+			return print_column(generalized_column.column_pointer.column);
+		case RESULT:
+			return print_result(generalized_column.column_pointer.result);
+		default:
+			return "Column handle has no column type";
+	}
+}
+
 char* execute_print(DbOperator* query) {
 	char* handle = query->operator_fields.print_operator.handle;
 
 	//look for handle in client_context
 	for (int i = 0; i < query->context->chandles_in_use; i++) {
 		if (strcmp(handle, query->context->chandle_table[i].name) == 0) {
-			return print_column(query->context->chandle_table[i].generalized_column.column_pointer.column);
+			return print(query->context->chandle_table[i].generalized_column);
 		}
 	}
 
@@ -204,13 +242,112 @@ char* execute_print(DbOperator* query) {
 	return "-- Could not find column to print";
 }
 
+char* execute_average(DbOperator* query) {
+	AverageOperator op = query->operator_fields.average_operator;
+	char* handle = op.handle;
+	double* average_result = NULL;
+
+	//look for handle in client_context
+	for (int i = 0; i < query->context->chandles_in_use; i++) {
+		if (strcmp(handle, query->context->chandle_table[i].name) == 0) {
+			average_result = malloc(sizeof *average_result);
+			*average_result = average_column(
+					query->context->chandle_table[i].generalized_column.column_pointer.column);
+			break;
+		}
+	}
+
+	//look for handle in column names in current_db
+	strsep(&handle, ".");
+	char* table_name = strsep(&handle, ".");
+	if (!average_result) {
+		if (!table_name)
+			return "-- Could not find column/handle to average.";
+
+		for (size_t i = 0; i < current_db->tables_size; i++) {
+			if (strncmp(table_name, current_db->tables[i].name, strlen(table_name)) == 0) {
+				for (size_t j = 0; j < current_db->tables[i].columns_size; j++) {
+					if (strncmp(handle, current_db->tables[i].columns[j].name, strlen(handle)) == 0) {
+						average_result = malloc(sizeof *average_result);
+						*average_result = average_column(&current_db->tables[i].columns[j]);
+						break;
+					}
+				}
+			}
+		}
+	} 
+
+	GeneralizedColumnHandle* result_handle = lookup_client_handle(query->context, op.result_handle);
+	if (!result_handle) {
+		return "Error: could not find results vector";
+	}
+	Result* result = malloc(sizeof(Result));
+	result->data_type = FLOAT;
+	result->num_tuples = 1;
+	result->payload = average_result;
+	result_handle->generalized_column.column_type = RESULT;
+	result_handle->generalized_column.column_pointer.result = result;
+
+	return "-- Average executed.";
+}
+
+char* execute_sum(DbOperator* query) {
+	SumOperator op = query->operator_fields.sum_operator;
+	char* handle = op.handle;
+	long* sum_result = NULL;
+
+	//look for handle in client_context
+	for (int i = 0; i < query->context->chandles_in_use; i++) {
+		if (strcmp(handle, query->context->chandle_table[i].name) == 0) {
+			sum_result = malloc(sizeof *sum_result);
+			*sum_result = sum_column(query->context->chandle_table[i].generalized_column.column_pointer.column);
+		}
+	}
+
+	//look for handle in column names in current_db
+	strsep(&handle, ".");
+	char* table_name = strsep(&handle, ".");
+	if (!sum_result) {
+		if (!table_name) 
+			return "-- Could not find column/handle to sum.";
+
+		for (size_t i = 0; i < current_db->tables_size; i++) {
+			if (strncmp(table_name, current_db->tables[i].name, strlen(table_name)) == 0) {
+				for (size_t j = 0; j < current_db->tables[i].columns_size; j++) {
+					if (strncmp(handle, current_db->tables[i].columns[j].name, strlen(handle)) == 0) {
+						sum_result = malloc(sizeof *sum_result);
+						*sum_result = sum_column(&current_db->tables[i].columns[j]);
+					}
+				}
+			}
+		}
+	}
+
+	if (!sum_result) {
+		return "-- Could not execute sum.";
+	}
+
+	GeneralizedColumnHandle* result_handle = lookup_client_handle(query->context, op.result_handle);
+	if (!result_handle) {
+		return "Error: could not find results vector";
+	}
+	Result* result = malloc(sizeof(Result));
+	result->data_type = LONG;
+	result->num_tuples = 1;
+	result->payload = sum_result;
+	result_handle->generalized_column.column_type = RESULT;
+	result_handle->generalized_column.column_pointer.result = result;
+
+	return "-- Sum executed.";
+}
+
 char* execute_shutdown() {
 	Status ret_status = shutdown_database(current_db);	
 	if (ret_status.code != OK) {
 		return "Could not sync DB to disk.";
 	}
 	
-	return "-- DB shutdown";
+	return "-- DB shutdown.";
 }
 
 void db_operator_free(DbOperator* query) {

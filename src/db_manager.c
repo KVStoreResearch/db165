@@ -237,6 +237,7 @@ Column* select_all(Column* col, int low, int high, Status* status) {
 	}
 
 	result->data = malloc(sizeof(int) * col->length); 
+	result->capacity = col->capacity;
 	if (!result->data) {
 		status->code = ERROR;
 		return NULL;
@@ -266,6 +267,7 @@ Column* select_posn(Column* col, int* positions, int low, int high, Status* stat
 		status->code = ERROR;
 		return NULL;
 	}
+	result->capacity = col->capacity;
 	int result_length = 0;
 
 	for (size_t i = 0; i < col->length; i++) {
@@ -291,6 +293,7 @@ Column* fetch(Column* col, Column* positions, Status* status) {
 		status->code = ERROR;
 		return NULL;
 	}
+	result->capacity = col->capacity;
 	size_t result_length = 0;
 
 	for (size_t i = 0; i < positions->length; i++) {
@@ -403,3 +406,22 @@ Status load(char* header_line, int* data, int data_length) {
 
 	return ret_status;
 }
+
+double average_column(Column* column)  {
+	double average = 0;
+	for (int i = 0; i < (int) column->length; i++) {
+		average += column->data[i];
+	}
+	average /= column->length;
+	return average; 
+}
+
+long sum_column(Column* column) {
+	long sum = 0;
+	for (int i = 0; i < (int) column->length; i++) {
+		sum += (long) column->data[i];
+	}
+	
+	return sum; 
+}
+

@@ -209,7 +209,9 @@ typedef enum OperatorType {
 	SELECT,
 	FETCH,
 	PRINT,
-	SHUTDOWN
+	SHUTDOWN,
+	AVERAGE,
+	SUM
 } OperatorType;
 
 /*
@@ -267,11 +269,28 @@ typedef struct FetchOperator {
 } FetchOperator;
 
 /*
- * necessary fields for fetch
+ * necessary fields for print
  */
 typedef struct PrintOperator {
 	char* handle;
 } PrintOperator;
+
+/*
+ * necessary fields for avg
+ */
+typedef struct AverageOperator {
+	char* result_handle;
+	char* handle;
+} AverageOperator;
+
+
+/*
+ * necessary fields for sum
+ */
+typedef struct SumOperator {
+	char* result_handle;
+	char* handle;
+} SumOperator;
 
 /*
  * union type holding the fields of any operator
@@ -283,6 +302,8 @@ typedef union OperatorFields {
 	SelectOperator select_operator;
 	FetchOperator fetch_operator;
 	PrintOperator print_operator;
+	AverageOperator average_operator;
+	SumOperator sum_operator;
 } OperatorFields;
 
 /*
@@ -322,6 +343,10 @@ Column* select_all(Column* col, int low, int high, Status* status);
 Column* select_posn(Column* col, int* positions, int low, int high, Status* status);
 
 Column* fetch(Column* col, Column* positions, Status* status);
+
+double average_column(Column* col);
+
+long sum_column(Column* col);
 
 Status shutdown_server();
 

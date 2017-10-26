@@ -187,15 +187,15 @@ char* print_result(Result* result) {
 	char* buf = calloc(1, DEFAULT_PRINT_BUFFER_SIZE);
 	switch (result->data_type) {
 		case FLOAT:
-			if (sprintf(buf, "%.2f\n", *((double*) result->payload)) < 0)
+			if (sprintf(buf, "%.2f", *((double*) result->payload)) < 0)
 				return "Could not print result.";
 			break;
 		case LONG:
-			if (sprintf(buf, "%lu\n", *((long*) result->payload)) < 0)
+			if (sprintf(buf, "%lu", *((long*) result->payload)) < 0)
 				return "Could not print result.";
 			break;
 		default: //default case is data type INT
-			if (sprintf(buf, "%d\n", *((int*) result->payload)) < 0)
+			if (sprintf(buf, "%d", *((int*) result->payload)) < 0)
 				return "Could not print result.";
 			break;
 	}

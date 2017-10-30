@@ -19,9 +19,7 @@ char* execute_fetch(DbOperator* query);
 
 char* execute_print(DbOperator* query);
 
-char* execute_average(DbOperator* query);
-
-char* execute_sum(DbOperator* query);
+char* execute_unary_aggregate(DbOperator* query);
 
 char* execute_shutdown();
 #endif

@@ -1,5 +1,6 @@
 #define _BSD_SOURCE
 #include <string.h> 
+#include <limits.h>
 
 #include "cs165_api.h"
 #include "utils.h"
@@ -425,3 +426,22 @@ long sum_column(Column* column) {
 	return sum; 
 }
 
+int min_column(Column* column) {
+	int min = INT_MAX;
+	for (size_t i = 0; i < column->length; i++) {
+		if (column->data[i] < min)
+			min = column->data[i];
+	}
+
+	return min;
+}
+
+int max_column(Column* column) {
+	int max = INT_MIN;
+	for (size_t i = 0; i < column->length; i++) {
+		if (column->data[i] > max)
+			max = column->data[i];
+	}
+
+	return max;
+}

@@ -211,7 +211,9 @@ typedef enum OperatorType {
 	PRINT,
 	SHUTDOWN,
 	AVERAGE,
-	SUM
+	SUM,
+	MAX,
+	MIN
 } OperatorType;
 
 /*
@@ -276,21 +278,13 @@ typedef struct PrintOperator {
 } PrintOperator;
 
 /*
- * necessary fields for avg
+ * necessary fields for any unary aggregate operator
+ * e.g. sum, avg, min, max
  */
-typedef struct AverageOperator {
+typedef struct UnaryAggOperator {
 	char* result_handle;
 	char* handle;
-} AverageOperator;
-
-
-/*
- * necessary fields for sum
- */
-typedef struct SumOperator {
-	char* result_handle;
-	char* handle;
-} SumOperator;
+} UnaryAggOperator;
 
 /*
  * union type holding the fields of any operator
@@ -302,8 +296,7 @@ typedef union OperatorFields {
 	SelectOperator select_operator;
 	FetchOperator fetch_operator;
 	PrintOperator print_operator;
-	AverageOperator average_operator;
-	SumOperator sum_operator;
+	UnaryAggOperator unary_aggregate_operator;
 } OperatorFields;
 
 /*
@@ -347,6 +340,10 @@ Column* fetch(Column* col, Column* positions, Status* status);
 double average_column(Column* col);
 
 long sum_column(Column* col);
+
+int min_column(Column* col);
+
+int max_column(Column* col);
 
 Status shutdown_server();
 

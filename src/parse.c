@@ -83,18 +83,18 @@ DbOperator* parse_command(char* query_command, message* send_message, int client
 	} else if (strncmp(query_command, "shutdown", 8) == 0) {
 		dbo = parse_shutdown(send_message);
 	} else if (strncmp(query_command, "avg", 3) == 0
-			|| strncmp(query_command, "sum", 3)
-			|| strncmp(query_command, "min", 3)
-			|| strncmp(query_command, "max", 3)) {
+			|| strncmp(query_command, "sum", 3) == 0
+			|| strncmp(query_command, "min", 3) == 0 
+			|| strncmp(query_command, "max", 3) == 0) {
 		add_handle(context, handle, false);
 		OperatorType op_type;
 		if (strncmp(query_command, "avg", 3) == 0)
 			op_type = AVERAGE;
-		if (strncmp(query_command, "sum", 3) == 0)
+		else if (strncmp(query_command, "sum", 3) == 0)
 			op_type = SUM;
-		if (strncmp(query_command, "max", 3) == 0)
+		else if (strncmp(query_command, "max", 3) == 0)
 			op_type = MAX;
-		if (strncmp(query_command, "min", 3) == 0)
+		else if (strncmp(query_command, "min", 3) == 0)
 			op_type = MIN;
 
 		query_command += 3;
@@ -105,6 +105,18 @@ DbOperator* parse_command(char* query_command, message* send_message, int client
 			dbo->operator_fields.unary_aggregate_operator.result_handle = handle;
 	} else if (strncmp(query_command, "add", 3) == 0
 			|| strncmp(query_command, "sub", 3) == 0) {
+		add_handle(context, handle, false);
+		OperatorType op_type;
+		if (strncmp(query_command, "add", 3) == 0)
+			op_type = ADD;
+		else if (strncmp(query_command, "sub", 3) == 0)
+			op_type = SUB;
+
+		query_command += 3;
+		dbo = parse_binary_aggregate(query_command, send_message);
+		dbo->type = op_type;
+		if (dbo)
+			dbo->operator_fields.binary_aggregate_operator.result_handle = handle;
 	} 
 
     if (dbo == NULL) {
@@ -499,6 +511,45 @@ DbOperator* parse_unary_aggregate(char* unary_agg_arguments, message* send_messa
 	
 	return dbo;
 }
+
+DbOperator* parse_binary_aggregate(char* binary_agg_arguments, message* send_message) {
+    char *tokenizer_copy, *to_free;
+    tokenizer_copy = to_free = malloc((strlen(binary_agg_arguments)+1) * sizeof(char));
+    strcpy(tokenizer_copy, binary_agg_arguments);
+
+    // check for leading '('
+    if (strncmp(tokenizer_copy, "(", 1) != 0) {
+		send_message->status = UNKNOWN_COMMAND;
+		return NULL;
+    }
+	tokenizer_copy++;
+	char** command_index = &tokenizer_copy;
+
+	char* handle1 = next_token(command_index, &send_message->status);
+	if (send_message->status == INCORRECT_FORMAT) {
+		return NULL;
+	}
+
+	char* handle2 = next_token(command_index, &send_message->status);
+	if (send_message->status == INCORRECT_FORMAT) {
+		return NULL;
+	}
+
+	int last_char = strlen(handle2) - 1;
+	if (last_char < 0 || handle2[last_char] != ')') {
+		send_message->status = INCORRECT_FORMAT;
+		return NULL;
+	}
+	handle2[last_char] = '\0';
+
+	DbOperator* dbo = (DbOperator*) malloc(sizeof(DbOperator));	
+	dbo->operator_fields.binary_aggregate_operator.handle1 = handle1;
+	dbo->operator_fields.binary_aggregate_operator.handle2 = handle2;
+	send_message->status = OK_DONE;
+	
+	return dbo;
+}
+
 DbOperator* parse_shutdown(message* send_message) {
 	DbOperator* dbo = malloc(sizeof(DbOperator));
 	dbo->type = SHUTDOWN;

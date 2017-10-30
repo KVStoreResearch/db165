@@ -21,5 +21,7 @@ char* execute_print(DbOperator* query);
 
 char* execute_unary_aggregate(DbOperator* query);
 
+char* execute_binary_aggregate(DbOperator* query);
+
 char* execute_shutdown();
 #endif

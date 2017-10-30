@@ -24,6 +24,8 @@ DbOperator* parse_print(char* print_arguments, message* send_message);
 
 DbOperator* parse_unary_aggregate(char* unary_agg_arguments, message* send_message);
 
+DbOperator* parse_binary_aggregate(char* binary_agg_arguments, message* send_message);
+
 DbOperator* parse_shutdown(message* send_message);
 
 #endif

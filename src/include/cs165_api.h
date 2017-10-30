@@ -213,7 +213,9 @@ typedef enum OperatorType {
 	AVERAGE,
 	SUM,
 	MAX,
-	MIN
+	MIN,
+	ADD,
+	SUB
 } OperatorType;
 
 /*
@@ -287,6 +289,16 @@ typedef struct UnaryAggOperator {
 } UnaryAggOperator;
 
 /*
+ * necessary fields for any unary aggregate operator
+ * e.g. sum, avg, min, max
+ */
+typedef struct BinaryAggOperator {
+	char* result_handle;
+	char* handle1;
+	char* handle2;
+} BinaryAggOperator;
+
+/*
  * union type holding the fields of any operator
  */
 typedef union OperatorFields {
@@ -297,6 +309,7 @@ typedef union OperatorFields {
 	FetchOperator fetch_operator;
 	PrintOperator print_operator;
 	UnaryAggOperator unary_aggregate_operator;
+	BinaryAggOperator binary_aggregate_operator;
 } OperatorFields;
 
 /*

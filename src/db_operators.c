@@ -36,6 +36,9 @@ char* execute_db_operator(DbOperator* query) {
 		case MIN:
 		case MAX:
 			return execute_unary_aggregate(query);
+		case ADD:
+		case SUB:
+			return execute_binary_aggregate(query);
 		case SHUTDOWN:
 			return execute_shutdown();
 		default:
@@ -329,54 +332,59 @@ char* execute_unary_aggregate(DbOperator* query) {
 	return executed ? "-- Unary aggregation executed." : "-- Could not execute unary aggregation";
 }
 
-char* execute_sum(DbOperator* query) {
-	UnaryAggOperator op = query->operator_fields.unary_aggregate_operator;
-	char* handle = op.handle;
-	long* sum_result = NULL;
+bool execute_binary_aggregate_columns(Column* column1, Column* column2, Column* result_column, 
+		OperatorType type) {
+	result_column->data = malloc(column1->length * sizeof *(result_column->data));
+	result_column->length = column1->length;
+	if (column1->length != column2->length || !result_column->data)
+		return false;
 
-	//look for handle in client_context
-	for (int i = 0; i < query->context->chandles_in_use; i++) {
-		if (strcmp(handle, query->context->chandle_table[i].name) == 0) {
-			sum_result = malloc(sizeof *sum_result);
-			*sum_result = sum_column(query->context->chandle_table[i].generalized_column.column_pointer.column);
-		}
-	}
-
-	//look for handle in column names in current_db
-	strsep(&handle, ".");
-	char* table_name = strsep(&handle, ".");
-	if (!sum_result) {
-		if (!table_name) 
-			return "-- Could not find column/handle to sum.";
-
-		for (size_t i = 0; i < current_db->tables_size; i++) {
-			if (strncmp(table_name, current_db->tables[i].name, strlen(table_name)) == 0) {
-				for (size_t j = 0; j < current_db->tables[i].columns_size; j++) {
-					if (strncmp(handle, current_db->tables[i].columns[j].name, strlen(handle)) == 0) {
-						sum_result = malloc(sizeof *sum_result);
-						*sum_result = sum_column(&current_db->tables[i].columns[j]);
-					}
-				}
+	switch (type) {
+		case ADD:
+			for (size_t i = 0; i < column1->length; i++) {
+				result_column->data[i] = column1->data[i] + column2->data[i];
 			}
-		}
+			break;
+		case SUB:
+			for (size_t i = 0; i < column1->length; i++) {
+				result_column->data[i] = column1->data[i] - column2->data[i];
+			}
+			break;
+		default:
+			return false;
 	}
+	return true;
+}
 
-	if (!sum_result) {
-		return "-- Could not execute sum.";
-	}
+char* execute_binary_aggregate(DbOperator* query) {
+	BinaryAggOperator op = query->operator_fields.binary_aggregate_operator;
 
 	GeneralizedColumnHandle* result_handle = lookup_client_handle(query->context, op.result_handle);
 	if (!result_handle) {
 		return "Error: could not find results vector";
 	}
-	Result* result = malloc(sizeof(Result));
-	result->data_type = LONG;
-	result->num_tuples = 1;
-	result->payload = sum_result;
-	result_handle->generalized_column.column_type = RESULT;
-	result_handle->generalized_column.column_pointer.result = result;
+	Column* result_column = malloc(sizeof(Column));
+	result_handle->generalized_column.column_type = COLUMN;
+	result_handle->generalized_column.column_pointer.column = result_column;
 
-	return "-- Sum executed.";
+	GeneralizedColumnHandle* generalized_handle1 = lookup_client_handle(query->context, op.handle1);
+	GeneralizedColumnHandle* generalized_handle2 = lookup_client_handle(query->context, op.handle2);
+	Column* column1 = NULL;
+	Column* column2 = NULL;
+	if (!generalized_handle1)
+		column1 = lookup_column(op.handle1);
+	else 
+		column1 = generalized_handle1->generalized_column.column_pointer.column;
+	if (!generalized_handle2)
+		column2 = lookup_column(op.handle2);
+	else 
+		column2 = generalized_handle2->generalized_column.column_pointer.column;
+
+	return (column1 
+			&& column2 
+			&& execute_binary_aggregate_columns(column1, column2, result_column, query->type))
+		? "-- Binary aggregation executed."
+		: "-- Could not execute binary aggregation";
 }
 
 char* execute_shutdown() {

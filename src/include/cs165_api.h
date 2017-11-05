@@ -36,9 +36,10 @@ SOFTWARE.
 #define COLUMN_BASE_CAPACITY 4096
 #define DEFAULT_RESULT_BUFFER_LENGTH 4096 
 #define DEFAULT_LOAD_BUFFER_LENGTH 4096 
+#define MAX_NUM_PRINT_HANDLES 12
 
+// Internal persistence
 #define SESSION_PATH ".session"
-
 #define BEGIN_LOAD_MESSAGE "LOAD"
 
 /**
@@ -257,7 +258,7 @@ typedef struct OpenOperator {
  */
 typedef struct SelectOperator {
 	Column* column;
-	int* positions;
+	Column* values;
 	int low;
 	int high;
 	char* result_handle;
@@ -276,7 +277,8 @@ typedef struct FetchOperator {
  * necessary fields for print
  */
 typedef struct PrintOperator {
-	char* handle;
+	char** handles;
+	int num_handles;
 } PrintOperator;
 
 /*
@@ -346,7 +348,7 @@ Status relational_insert(Table* table, int* values);
 
 Column* select_all(Column* col, int low, int high, Status* status);
 
-Column* select_posn(Column* col, int* positions, int low, int high, Status* status);
+Column* select_fetch(Column* positions, Column* values, int low, int high, Status* status);
 
 Column* fetch(Column* col, Column* positions, Status* status);
 

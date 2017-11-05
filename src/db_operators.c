@@ -114,16 +114,15 @@ char* execute_insert(DbOperator* query) {
 	return "-- Insert executed";
 }
 
-// TODO fetch-select
 char* execute_select(DbOperator* query) {
 	Status ret_status;
 	SelectOperator op = query->operator_fields.select_operator;
 
 	Column* result_col;
-	if (!op.positions) {
+	if (!op.values) { // regular select
 		result_col = select_all(op.column, op.low, op.high, &ret_status);
-	} else {
-		result_col = select_posn(op.column, op.positions, op.low, op.high, &ret_status);
+	} else { // fetch select
+		result_col = select_fetch(op.column, op.values, op.low, op.high, &ret_status);
 	}
 
 	GeneralizedColumnHandle* result_handle = lookup_client_handle(query->context, op.result_handle);
@@ -156,11 +155,7 @@ char* execute_fetch(DbOperator* query) {
 	return "-- Fetch executed";
 }
 
-char* print_column(Column* column) {
-	int buf_capacity = DEFAULT_PRINT_BUFFER_SIZE;
-	int buf_size = 0;
-	char* buf = calloc(1, buf_capacity);
-
+int print_column(Column* column, char** buf_ptr, int* buf_size, int* buf_capacity) {
 	for (size_t i = 0; i < column->length; i++) {
 		int len = column->data[i] < 0 ? 2 : 1;
 		int data_copy = column->data[i] < 0 ? column->data[i] * -1 : column->data[i] * 1;
@@ -170,82 +165,92 @@ char* print_column(Column* column) {
 			data_copy /= 10;
 		}
 
-		if (buf_size + len >= buf_capacity) { // enlarge buffer size
-			char* new_buf = realloc(buf, buf_capacity * 2);
+		if (*buf_size + len >= *buf_capacity) { // enlarge buffer size
+			char* new_buf = realloc(*buf_ptr, *buf_capacity * 2);
 			if (!new_buf) {
 				log_err("Could not reallocate bigger buffer for printing column %s.\n",
 						column->name);
 			}
-			buf = new_buf;
-			buf_capacity *= 2;
+			*buf_ptr = new_buf;
+			*buf_capacity *= 2;
 		}
 
-		sprintf(buf + buf_size, "%d%s", column->data[i], i < column->length - 1 ? "\n" : "\0");
-		buf_size += len + 1;
+		sprintf(*buf_ptr + *buf_size, "%d%s", column->data[i], i < column->length - 1 ? "\n" : "\0");
+		*buf_size += len + 1;
 	}
 
-	return buf;
+	return *buf_size;
 }
 
-char* print_result(Result* result) {
-	char* buf = calloc(1, DEFAULT_PRINT_BUFFER_SIZE);
+// NOTE: does not check if buffer can hold result given current buf_size and capacity
+int print_result(Result* result, char** buf_ptr, int* buf_size, int* buf_capacity) {
+	(void) buf_capacity;
+	int r = 0;
 	switch (result->data_type) {
 		case FLOAT:
-			if (sprintf(buf, "%.2f", *((double*) result->payload)) < 0)
-				return "Could not print result.";
+			r = sprintf(*buf_ptr + *buf_size, "%.2f", *((double*) result->payload));
+			if (r < 0)
+				return -1;
 			break;
 		case LONG:
-			if (sprintf(buf, "%lu", *((long*) result->payload)) < 0)
-				return "Could not print result.";
+			r = sprintf(*buf_ptr + *buf_size, "%ld", *((long*) result->payload));
+			if (r < 0)
+				return -1;
 			break;
 		default: //default case is data type INT
-			if (sprintf(buf, "%d", *((int*) result->payload)) < 0)
-				return "Could not print result.";
+			r = sprintf(*buf_ptr + *buf_size, "%d", *((int*) result->payload));
+			if (r < 0)
+				return -1;
 			break;
 	}
-	
-	return buf;
+	*buf_size += r;
+	return *buf_size;
 }
 
-char* print(GeneralizedColumn generalized_column) {
+int print(GeneralizedColumn generalized_column, char** buf_ptr, int* buf_size, int* buf_capacity) {
 	switch (generalized_column.column_type) {
 		case COLUMN:
-			return print_column(generalized_column.column_pointer.column);
+			return print_column(generalized_column.column_pointer.column, buf_ptr, buf_size, 
+					buf_capacity);
 		case RESULT:
-			return print_result(generalized_column.column_pointer.result);
+			return print_result(generalized_column.column_pointer.result, buf_ptr, buf_size, 
+					buf_capacity);
 		default:
-			return "Column handle has no column type";
+			return -1;
 	}
 }
 
-
-
 char* execute_print(DbOperator* query) {
-	char* handle = query->operator_fields.print_operator.handle;
+	PrintOperator op = query->operator_fields.print_operator;
+	int* buf_capacity = malloc(sizeof *buf_capacity);
+	int* buf_size = malloc(sizeof *buf_size);
+	*buf_size = 0;
+	*buf_capacity = DEFAULT_PRINT_BUFFER_SIZE;
+	char** buf_ptr = malloc(sizeof *buf_ptr);
+	*buf_ptr = calloc(1, *buf_capacity);
 
-	//look for handle in client_context
-	for (int i = 0; i < query->context->chandles_in_use; i++) {
-		if (strcmp(handle, query->context->chandle_table[i].name) == 0) {
-			return print(query->context->chandle_table[i].generalized_column);
+	for (int i = 0; i < op.num_handles; i++) {
+		GeneralizedColumnHandle* generalized_handle = lookup_client_handle(query->context, 
+				op.handles[i]);
+		if (generalized_handle) {
+			if (print(generalized_handle->generalized_column, buf_ptr, buf_size, buf_capacity) < 0)
+				return "-- Print execution failed";
+		} else {
+			Column* column = lookup_column(op.handles[i]);
+			if (column) 
+				if (print_column(column, buf_ptr, buf_size, buf_capacity) < 0)
+					return "-- Print execution failed";
+		}
+
+		if (i < op.num_handles - 1) {
+			sprintf(*buf_ptr + *buf_size, ",");
+			*buf_size += 1;
 		}
 	}
 
-	//look for handle in column names in current_db
-	strsep(&handle, ".");
-	char* table_name = strsep(&handle, ".");
-	if (!table_name) 
-		return "-- Could not find column/handle to print.";
-	
-	for (size_t i = 0; i < current_db->tables_size; i++) {
-		if (strncmp(table_name, current_db->tables[i].name, strlen(table_name)) == 0) {
-			for (size_t j = 0; j < current_db->tables[i].columns_size; j++) {
-				if (strncmp(handle, current_db->tables[i].columns[j].name, strlen(handle)) == 0) {
-					return print_column(&current_db->tables[i].columns[j]);
-				}
-			}
-		}
-	}
-	return "-- Could not find column to print";
+	return *buf_size > 0 
+		? *buf_ptr
+		: "-- Could not find column to print";
 }
 
 bool execute_unary_aggregate_column(Column* column, Result* result, OperatorType type) {
@@ -254,24 +259,28 @@ bool execute_unary_aggregate_column(Column* column, Result* result, OperatorType
 			double* average = malloc(sizeof *average);
 			*average = average_column(column);
 			result->payload = average;
+			result->data_type = FLOAT;
 			return true;
 		}
 		case SUM:{
 			long* sum = malloc(sizeof *sum);
 			*sum = sum_column(column);
 			result->payload = sum;
+			result->data_type = LONG;
 			return true;
 		}
 		case MAX:{
 			int* max = malloc(sizeof *max);
 			*max = max_column(column);
 			result->payload = max;
+			result->data_type = INT;
 			return true;
 		}
 		case MIN:{
 			int* min = malloc(sizeof *min);
 			*min = min_column(column);
 			result->payload = min;
+			result->data_type = INT;
 			return true;
 		}
 		default:
@@ -281,55 +290,27 @@ bool execute_unary_aggregate_column(Column* column, Result* result, OperatorType
 
 char* execute_unary_aggregate(DbOperator* query) {
 	UnaryAggOperator op = query->operator_fields.unary_aggregate_operator;
-	char* handle = op.handle;
 
 	GeneralizedColumnHandle* result_handle = lookup_client_handle(query->context, op.result_handle);
 	if (!result_handle) {
 		return "Error: could not find results vector";
 	}
 	Result* result = malloc(sizeof(Result));
-	result->data_type = query->type == AVERAGE ? FLOAT : (query->type == SUM ? LONG : INT);
 	result->num_tuples = 1;
 	result->payload = result;
 	result_handle->generalized_column.column_type = RESULT;
 	result_handle->generalized_column.column_pointer.result = result;
-	bool executed = false;
 
+	GeneralizedColumnHandle* generalized_handle = lookup_client_handle(query->context, op.handle);
+	Column* column = NULL;
+	if (!generalized_handle)
+		column = lookup_column(op.handle);
+	else 
+		column = generalized_handle->generalized_column.column_pointer.column;
 
-	//look for handle in client_context
-	for (int i = 0; i < query->context->chandles_in_use; i++) {
-		if (strcmp(handle, query->context->chandle_table[i].name) == 0) {
-			executed = execute_unary_aggregate_column(
-					query->context->chandle_table[i].generalized_column.column_pointer.column,
-					result,
-					query->type);
-			break;
-		}
-	}
-
-	//look for handle in column names in current_db
-	strsep(&handle, ".");
-	char* table_name = strsep(&handle, ".");
-	if (!executed) {
-		if (!table_name)
-			return "-- Could not find column/handle.";
-
-		for (size_t i = 0; i < current_db->tables_size; i++) {
-			if (strncmp(table_name, current_db->tables[i].name, strlen(table_name)) == 0) {
-				for (size_t j = 0; j < current_db->tables[i].columns_size; j++) {
-					if (strncmp(handle, current_db->tables[i].columns[j].name, strlen(handle)) == 0) {
-						executed = execute_unary_aggregate_column(
-								&current_db->tables[i].columns[j],
-								result,
-								query->type);
-						break;
-					}
-				}
-			}
-		}
-	} 
-
-	return executed ? "-- Unary aggregation executed." : "-- Could not execute unary aggregation";
+	return execute_unary_aggregate_column(column, result, query->type) 
+		? "-- Unary aggregation executed." 
+		: "-- Could not execute unary aggregation";
 }
 
 bool execute_binary_aggregate_columns(Column* column1, Column* column2, Column* result_column, 

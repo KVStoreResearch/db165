@@ -68,7 +68,7 @@ DbOperator* parse_command(char* query_command, message* send_message, int client
     } else if (strncmp(query_command, "select", 6) == 0) {
 		add_handle(context, handle, false);
 		query_command += 6;
-		dbo = parse_select(query_command, send_message);
+		dbo = parse_select(query_command, context, send_message); 
 		if (dbo)
 			dbo->operator_fields.select_operator.result_handle = handle;
 	} else if (strncmp(query_command, "fetch", 5) == 0) {
@@ -348,8 +348,8 @@ DbOperator* parse_insert(char* insert_arguments, message* send_message) {
 /*
  * parse_select
  */
-DbOperator* parse_select(char* select_arguments, message* send_message) {
-    char *tokenizer_copy, *to_free, *token;
+DbOperator* parse_select(char* select_arguments, ClientContext* context, message* send_message) {
+    char *tokenizer_copy, *to_free;
     tokenizer_copy = to_free = malloc(strlen(select_arguments)+1);
     strcpy(tokenizer_copy, select_arguments);
 
@@ -370,31 +370,50 @@ DbOperator* parse_select(char* select_arguments, message* send_message) {
 	// lookup the table and make sure it exists. 
 	Column* select_column = lookup_column(column_name);
 	if (!select_column) {
-		send_message->status = OBJECT_NOT_FOUND;
-		return NULL;
+		GeneralizedColumnHandle* generalized_handle = lookup_client_handle(context, column_name);
+		if (!generalized_handle) {
+			send_message->status = OBJECT_NOT_FOUND;
+			return NULL;
+		}
+		select_column = generalized_handle->generalized_column.column_pointer.column;
 	}
 	
 	// parse upper and lower bounds
-	token = strsep(command_index, ",");
-	int low = INT_MIN;
-	if (strncmp(token, "null", 4) != 0) {
-		low = atoi(token);
-	}
-	token = strsep(command_index, ",");
+	char* token2 = strsep(command_index, ",");
+	char* token3 = strsep(command_index, ",");
+	char* token4 = strsep(command_index, ",");
 	int high = INT_MAX;
-	if (strncmp(token, "null", 4) != 0) {
-		high = atoi(token);
-	}
+	int low = INT_MIN;
+	GeneralizedColumnHandle* values_vec = NULL;
 
 	// make select operator. 
 	DbOperator* dbo = malloc(sizeof(DbOperator));
 	dbo->type = SELECT;
-	dbo->operator_fields.select_operator.column = select_column;
+
+	if (!token4) { // regular select
+		if (strncmp(token2, "null", 4) != 0) {
+			low = atoi(token2);
+		}
+		if (strncmp(token3, "null", 4) != 0) {
+			high = atoi(token3);
+		}
+		dbo->operator_fields.select_operator.column = select_column;
+		dbo->operator_fields.select_operator.values = NULL; 
+	} else { // select-fetch
+		values_vec = lookup_client_handle(context, token2);
+		if (strncmp(token3, "null", 4) != 0) {
+			low = atoi(token3);
+		}
+		if (strncmp(token4, "null", 4) != 0) {
+			high = atoi(token4);
+		}
+		dbo->operator_fields.select_operator.column = select_column;
+		dbo->operator_fields.select_operator.values = values_vec 
+			? values_vec->generalized_column.column_pointer.column
+			: NULL;
+	}
 	dbo->operator_fields.select_operator.low = low;
 	dbo->operator_fields.select_operator.high = high;
-	dbo->operator_fields.select_operator.positions = NULL;
-
-	//TODO parse other arguments
 	return dbo;
 }
 
@@ -459,22 +478,30 @@ DbOperator* parse_print(char* print_arguments, message* send_message) {
     }
 	tokenizer_copy++;
 	char** command_index = &tokenizer_copy;
+	
+	int num_handles = 0;
+	char** handles = malloc(MAX_NUM_PRINT_HANDLES * sizeof *handles);
 
-	char* handle = next_token(command_index, &send_message->status);
-	if (send_message->status == INCORRECT_FORMAT) {
-		return NULL;
+	char* handle = NULL;
+	while ((handle = next_token(command_index, &send_message->status))) {
+		if (send_message->status == INCORRECT_FORMAT) {
+			return NULL;
+		}
+		handles[num_handles++] = handle;
 	}
 
-	int last_char = strlen(handle) - 1;
-	if (last_char < 0 || handle[last_char] != ')') {
+	char* last_handle = handles[num_handles - 1];
+	int last_char = strlen(last_handle) - 1;
+	if (last_char < 0 || last_handle[last_char] != ')') {
 		send_message->status = INCORRECT_FORMAT;
 		return NULL;
 	}
-	handle[last_char] = '\0';
+	last_handle[last_char] = '\0';
 
 	DbOperator* dbo = (DbOperator*) malloc(sizeof(DbOperator));	
 	dbo->type = PRINT;
-	dbo->operator_fields.print_operator.handle = handle;
+	dbo->operator_fields.print_operator.handles = handles;
+	dbo->operator_fields.print_operator.num_handles = num_handles;
 	send_message->status = OK_DONE;
 
 	return dbo;

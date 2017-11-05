@@ -237,7 +237,7 @@ Column* select_all(Column* col, int low, int high, Status* status) {
 		return NULL;
 	}
 
-	result->data = malloc(sizeof(int) * col->length); 
+	result->data = malloc(sizeof(int) * col->capacity); 
 	result->capacity = col->capacity;
 	if (!result->data) {
 		status->code = ERROR;
@@ -247,8 +247,7 @@ Column* select_all(Column* col, int low, int high, Status* status) {
 
 	for (size_t i = 0; i < col->length; i++) {
 		if (col->data[i] >= low && col->data[i] < high) {
-			result->data[result_length] = i;
-			result_length++;
+			result->data[result_length++] = i;
 		}
 	}
 	result->length = result_length;
@@ -256,25 +255,24 @@ Column* select_all(Column* col, int low, int high, Status* status) {
 	return result;
 }
 
-Column* select_posn(Column* col, int* positions, int low, int high, Status* status) {
-	Column* result = malloc(sizeof(*result));
+Column* select_fetch(Column* positions, Column* values, int low, int high, Status* status) {
+	Column* result = malloc(sizeof *result);
 	if (!result) {
 		status->code = ERROR;
 		return NULL;
 	}
 
-	result->data = malloc(sizeof(int) * col->length); 
+	result->data = malloc(sizeof(int) * positions->capacity); 
 	if (!result->data) {
 		status->code = ERROR;
 		return NULL;
 	}
-	result->capacity = col->capacity;
+	result->capacity = positions->capacity;
 	int result_length = 0;
 
-	for (size_t i = 0; i < col->length; i++) {
-		if (col->data[i] >= low && col->data[i] < high) {
-			result->data[positions[result_length]] = i;
-			result_length++;
+	for (size_t i = 0; i < positions->length; i++) {
+		if (values->data[i] >= low && values->data[i] < high) {
+			result->data[result_length++] = positions->data[i];
 		}
 	}
 	result->length = result_length;
@@ -283,13 +281,13 @@ Column* select_posn(Column* col, int* positions, int low, int high, Status* stat
 }
 
 Column* fetch(Column* col, Column* positions, Status* status) {
-	Column* result = malloc(sizeof(*result));
+	Column* result = malloc(sizeof *result);
 	if (!result) {
 		status->code = ERROR;
 		return NULL;
 	}
 
-	result->data = malloc(sizeof(int) * col->length); 
+	result->data = malloc(sizeof(int) * col->capacity); 
 	if (!result->data) {
 		status->code = ERROR;
 		return NULL;
@@ -298,8 +296,7 @@ Column* fetch(Column* col, Column* positions, Status* status) {
 	size_t result_length = 0;
 
 	for (size_t i = 0; i < positions->length; i++) {
-		result->data[i] = col->data[positions->data[i]];
-		result_length++;
+		result->data[result_length++] = col->data[positions->data[i]];
 	}
 	result->length = result_length;
 
@@ -420,9 +417,8 @@ double average_column(Column* column)  {
 long sum_column(Column* column) {
 	long sum = 0;
 	for (int i = 0; i < (int) column->length; i++) {
-		sum += (long) column->data[i];
+		sum += column->data[i];
 	}
-	
 	return sum; 
 }
 
@@ -432,7 +428,6 @@ int min_column(Column* column) {
 		if (column->data[i] < min)
 			min = column->data[i];
 	}
-
 	return min;
 }
 
@@ -442,6 +437,5 @@ int max_column(Column* column) {
 		if (column->data[i] > max)
 			max = column->data[i];
 	}
-
 	return max;
 }

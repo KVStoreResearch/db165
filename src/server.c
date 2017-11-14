@@ -24,6 +24,7 @@
 #include "common.h"
 #include "parse.h"
 #include "cs165_api.h"
+#include "db_operators_batch.h"
 #include "message.h"
 #include "utils.h"
 #include "client_context.h"
@@ -32,7 +33,8 @@
 
 typedef enum mode {
 	DEFAULT,
-	LOAD
+	LOAD,
+	BATCH
 } mode;
 
 static mode current_mode = DEFAULT;
@@ -103,6 +105,10 @@ int handle_client_default(int client_socket, ClientContext* client_context) {
 		current_mode = LOAD;
 		result = "-- Load message received!";
 		send_message.status = OK_BEGIN_LOAD;
+	} else if (strncmp(recv_message.payload.text, BEGIN_BATCH_MESSAGE, 
+				strlen(BEGIN_BATCH_MESSAGE)) == 0) {
+		current_mode = BATCH;
+		result = "-- Batching operators!";
 	} else {
 		// Parse command
 		DbOperator* query = parse_command(recv_message.payload.text, &send_message, 
@@ -117,6 +123,41 @@ int handle_client_default(int client_socket, ClientContext* client_context) {
 	if (shutdown) {
 		exit(0);
 	}
+
+	return 0;
+}
+
+int handle_client_batch(int client_socket, ClientContext* client_context, BatchOperator* batch) {
+	message recv_message;
+	int length = recv(client_socket, &recv_message, sizeof(message), 0);
+	if (length <=  0) {
+		log_err("Client connection closed!\n");
+		return 1;
+	}
+
+	char recv_buffer[recv_message.length + 1];
+	length = recv(client_socket, recv_buffer, recv_message.length,0);
+	recv_message.payload.text = recv_buffer;
+	recv_message.payload.text[recv_message.length] = '\0';
+	
+	message send_message;
+	send_message.status = OK_DONE;
+	char* result = "-- Query unsupported";
+
+	if (strncmp(recv_message.payload.text, EXECUTE_BATCH_MESSAGE,
+				strlen(EXECUTE_BATCH_MESSAGE)) == 0) {
+		result = execute_db_batch(batch);
+		current_mode = DEFAULT;
+	} else {
+		// Collect DbOperators into operators batch_ops
+		DbOperator* op = parse_command(recv_message.payload.text, &send_message, 
+				client_socket, client_context);
+		int r = handle_db_operator(op, batch);
+		result = "-- Batch operator received";
+		if (r < 0) 
+			result = "-- Could not collect batch operator";
+	}
+	send_result(client_socket, send_message, result);
 
 	return 0;
 }
@@ -246,10 +287,18 @@ void handle_client(int client_socket) {
 		exit(1);
 	}
 
+	BatchOperator batch;
+	int r = init_batch(&batch);
+	if (r < 0)
+		log_err("Could not allocate batch operator");
+
     do {
 		switch (current_mode) {
 			case LOAD:
 				done = handle_client_load(client_socket);
+				break;
+			case BATCH:
+				done = handle_client_batch(client_socket, client_context, &batch);
 				break;
 			default:
 				done = handle_client_default(client_socket, client_context);

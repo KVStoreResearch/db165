@@ -42,6 +42,12 @@ SOFTWARE.
 #define SESSION_PATH ".session"
 #define BEGIN_LOAD_MESSAGE "LOAD"
 
+// MILESTONE 2: Batch Operators 
+#define BEGIN_BATCH_MESSAGE "batch_queries"
+#define EXECUTE_BATCH_MESSAGE "batch_execute"
+#define MAX_NUM_BATCH_OPERATORS 16
+
+
 /**
  * EXTRA
  * DataType
@@ -328,6 +334,39 @@ typedef struct DbOperator {
     ClientContext* context;
 } DbOperator;
 
+typedef struct BatchSelect {
+	Column* column;
+	int* lows;
+	int* highs;
+	char** result_handles;
+	int num_ops;
+	int ops_capacity;
+	ClientContext* context;
+} BatchSelect;
+
+typedef struct BatchFetch {
+	Column* column;
+	char** positions_handles;
+	char** result_handles;
+	int num_ops;
+	int ops_capacity;
+	ClientContext* context;
+} BatchFetch;
+
+typedef struct BatchOperator {
+	BatchSelect* batch_select;
+	int num_ops_select;
+	int ops_capacity_select;
+
+	BatchFetch* batch_fetch;
+	int num_ops_fetch;
+	int ops_capacity_fetch;
+
+	DbOperator** other_ops;
+	int num_ops_other;
+	int ops_capacity_other;
+} BatchOperator;
+
 extern Db *current_db;
 
 Status db_startup();
@@ -351,6 +390,10 @@ Column* select_all(Column* col, int low, int high, Status* status);
 Column* select_fetch(Column* positions, Column* values, int low, int high, Status* status);
 
 Column* fetch(Column* col, Column* positions, Status* status);
+
+Column** select_batch(Column* col, int* lows, int* highs, int num_ops, Status* status);
+
+Column** fetch_batch(Column* col, Column** positions, int num_ops, Status* status);
 
 double average_column(Column* col);
 

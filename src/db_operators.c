@@ -139,7 +139,7 @@ char* execute_fetch(DbOperator* query) {
 	GeneralizedColumnHandle* positions_handle = lookup_client_handle(query->context, op.positions_handle);
 	if (!positions_handle) {
 		ret_status.code = ERROR;
-		return "Error: could not find positions vector";
+		return "-- Error: could not find positions vector";
 	}
 	Column* positions_col =  positions_handle->generalized_column.column_pointer.column;
 	Column* result_col = fetch(op.column, positions_col, &ret_status);
@@ -147,7 +147,7 @@ char* execute_fetch(DbOperator* query) {
 	GeneralizedColumnHandle* result_handle = lookup_client_handle(query->context, op.result_handle);
 	if (!result_handle) {
 		ret_status.code = ERROR;
-		return "Error: could not find results vector";
+		return "-- Error: could not find results vector";
 	}
 	result_handle->generalized_column.column_pointer.column = result_col;
 	result_handle->generalized_column.column_type = COLUMN;

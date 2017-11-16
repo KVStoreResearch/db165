@@ -29,7 +29,7 @@ SOFTWARE.
 #define HANDLE_MAX_SIZE 64
 
 // MILESTONE 1: Only support single table queries
-#define MAX_NUM_HANDLES 24
+#define MAX_NUM_HANDLES 64 
 #define MAX_NUM_TABLES 16 
 #define MAX_NUM_COLUMNS 256
 

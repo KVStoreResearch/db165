@@ -14,6 +14,8 @@ DbOperator* parse_create_tbl(char* create_tbl_arguments, message* send_message);
 
 DbOperator* parse_create_col(char* create_col_arguments, message* send_message);
 
+DbOperator* parse_create_idx(char* create_idx_arguments, message* send_message);
+
 DbOperator* parse_insert(char* insert_arguments, message* send_message);
 
 DbOperator* parse_select(char* select_arguments, ClientContext* context, message* send_message);

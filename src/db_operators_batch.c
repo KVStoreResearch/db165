@@ -240,50 +240,55 @@ char* execute_batch_fetch(BatchFetch* batch_fetch) {
 	return "-- Shared fetch executed";
 }
 
+// pthread routine for batch select
 void* run_batch_select(void* batch_select) {
 	execute_batch_select((BatchSelect*) batch_select);
 	pthread_exit(NULL);
 }
 
+// pthread routine for batch fetch 
 void* run_batch_fetch(void* batch_fetch) {
 	execute_batch_fetch((BatchFetch*) batch_fetch);
 	pthread_exit(NULL);
 }
 
+// pthread routine for other operator execution 
 void* run_batch_other(void* other) {
 	execute_db_operator((DbOperator*) other);
 	pthread_exit(NULL);
 }
 
 char* execute_db_batch(BatchOperator* batch) {
-	pthread_t* select_threads = malloc(sizeof *select_threads * batch->num_ops_select);
+	pthread_t select_threads[batch->num_ops_select];
 	for (int i = 0; i < batch->num_ops_select; i++) {
-		pthread_t select_thread;
-		select_threads[i] = select_thread;
 		pthread_create(&select_threads[i], NULL, run_batch_select, (void*) &batch->batch_select[i]);
 	}
-	pthread_t* fetch_threads = malloc(sizeof *fetch_threads * batch->num_ops_fetch);
+
+	pthread_t fetch_threads[batch->num_ops_fetch];
 	for (int i = 0; i < batch->num_ops_fetch; i++) {
-		pthread_t fetch_thread;
-		fetch_threads[i] = fetch_thread;
 		pthread_create(&fetch_threads[i], NULL, run_batch_fetch, (void*) &batch->batch_fetch[i]);
 	}
-	pthread_t* other_threads = malloc(sizeof *other_threads * batch->num_ops_other);
+
+	pthread_t other_threads[batch->num_ops_other];
 	for (int i = 0; i < batch->num_ops_other; i++) {
-		pthread_t other_thread;
-		other_threads[i] = other_thread;
 		pthread_create(&other_threads[i], NULL, run_batch_other, (void*) batch->other_ops[i]);
 	}
 
 	int r;
 	for (int i = 0; i < batch->num_ops_select; i++) {
 		r = pthread_join(select_threads[i], NULL);
+		if (r != 0) 
+			return "-- Error occurred in batch execution";
 	}
 	for (int i = 0; i < batch->num_ops_fetch; i++) {
 		r = pthread_join(fetch_threads[i], NULL);
+		if (r != 0) 
+			return "-- Error occurred in batch execution";
 	}
 	for (int i = 0; i < batch->num_ops_other; i++) {
 		r = pthread_join(other_threads[i], NULL);
+		if (r != 0) 
+			return "-- Error occurred in batch execution";
 	}
 	return "-- Batch executed!";
 }

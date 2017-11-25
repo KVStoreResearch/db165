@@ -55,11 +55,13 @@ char* execute_create(DbOperator* query) {
 			return execute_create_tbl(query);
 		case COL:
 			return execute_create_col(query);
+		case IDX:
+			return execute_create_idx(query);
 		default:
 			break;
 	}
 	
-	return "Invalid create query.";
+	return "-- Invalid create query.";
 }
 
 char* execute_create_db(DbOperator* query) {
@@ -67,7 +69,7 @@ char* execute_create_db(DbOperator* query) {
 	Status ret_status = create_db(db_name);
 
 	if (ret_status.code != OK) {
-		return "Could not complete create(db) query.";
+		return "-- Could not complete create(db) query.";
 	}
 
 	return "-- DB created";
@@ -79,7 +81,7 @@ char* execute_create_tbl(DbOperator* query) {
     Status ret_status = create_table(current_db, table_name, col_count);
 
     if (ret_status.code != OK) {
-        return "Could not complete create(tbl) query";
+        return "-- Could not complete create(tbl) query";
     }
 
 	return "-- Table created";
@@ -91,10 +93,23 @@ char* execute_create_col(DbOperator* query) {
 
     Status ret_status = create_column(name, table, false);
     if (ret_status.code != OK) {
-        return "Could not complete create(col) query";
+        return "-- Could not complete create(col) query";
     }
 
 	return "-- Column created";
+}
+
+char* execute_create_idx(DbOperator* query) {
+	Column* col = query->operator_fields.create_operator.column;
+	IndexType type = query->operator_fields.create_operator.type; 
+	bool clustered = query->operator_fields.create_operator.clustered;
+
+	Status ret_status = create_index(col, type, clustered);	
+	if (ret_status.code != OK) {
+		return "-- Colud not complete create(idx) query";
+	}
+
+	return "-- Index created";
 }
 
 // TODO

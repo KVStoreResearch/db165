@@ -137,21 +137,24 @@ DbOperator* parse_create(char* create_arguments, message* send_message) {
     tokenizer_copy = to_free = malloc((strlen(create_arguments)+1) * sizeof(char));
     strcpy(tokenizer_copy, create_arguments);
 
+	DbOperator* ret_operator = NULL;
     if (strncmp(tokenizer_copy, "(", 1) == 0) {
         tokenizer_copy++;
         // token stores first argument. Tokenizer copy now points to just past first ","
         token = next_token(&tokenizer_copy, &send_message->status);
         if (send_message->status == INCORRECT_FORMAT) {
-            return NULL;
+            return ret_operator;
         } else {
             // pass off to next parse function. 
             if (strcmp(token, "db") == 0) {
-                return parse_create_db(tokenizer_copy, send_message);
+                ret_operator = parse_create_db(tokenizer_copy, send_message);
             } else if (strcmp(token, "tbl") == 0) {
-                return parse_create_tbl(tokenizer_copy, send_message);
+                ret_operator = parse_create_tbl(tokenizer_copy, send_message);
 			} else if (strcmp(token, "col") == 0) {
-				return parse_create_col(tokenizer_copy, send_message);
-            } else {
+				ret_operator = parse_create_col(tokenizer_copy, send_message);
+            } else if (strcmp(token, "idx") == 0) { 
+				ret_operator = parse_create_idx(tokenizer_copy, send_message);
+			} else {
                 send_message->status = UNKNOWN_COMMAND;
             }
         }
@@ -159,7 +162,7 @@ DbOperator* parse_create(char* create_arguments, message* send_message) {
 		send_message->status = UNKNOWN_COMMAND;
     }
     free(to_free);
-    return NULL;
+    return ret_operator;
 }
 
 
@@ -284,13 +287,59 @@ DbOperator* parse_create_col(char* create_col_arguments, message* send_message) 
 		return NULL;
 	}
 
-	DbOperator* create_col_operator = (DbOperator*) malloc(sizeof(DbOperator));
-	create_col_operator ->type = CREATE;
+	DbOperator* create_col_operator = malloc(sizeof *create_col_operator);
+	create_col_operator->type = CREATE;
 	create_col_operator->operator_fields.create_operator.type = COL;
 	create_col_operator->operator_fields.create_operator.name = col_name;
 	create_col_operator->operator_fields.create_operator.table = current_table;
 
     return create_col_operator;
+}
+
+DbOperator* parse_create_idx(char* create_idx_arguments, message* send_message) {
+	char** create_arguments_index = &create_idx_arguments;
+    char* col_name = next_token(create_arguments_index, &send_message->status);
+    char* idx_type_arg = next_token(create_arguments_index, &send_message->status);
+    char* cluster_arg = next_token(create_arguments_index, &send_message->status);
+
+    // Not enough arguments
+    if (send_message->status == INCORRECT_FORMAT) {
+        return NULL;
+    }
+
+	int last_char = strlen(cluster_arg) - 1;
+	if (cluster_arg[last_char] != ')') {
+		send_message->status = INCORRECT_FORMAT;
+		return NULL;
+	}
+	cluster_arg[last_char] = '\0';
+	
+	col_name = trim_quotes(col_name);
+	Column* column = lookup_column(col_name);
+	if (!column) {
+		send_message->status = OBJECT_NOT_FOUND;	
+		return NULL;
+	}
+
+	IndexType idx_type;
+	if (strncmp(idx_type_arg, BTREE_IDX_ARG, strlen(BTREE_IDX_ARG)) == 0) {
+		idx_type = BTREE;
+	} else if (strncmp(idx_type_arg, SORTED_IDX_ARG, strlen(SORTED_IDX_ARG)) == 0) {
+		idx_type = SORTED;
+	} else {
+		send_message->status = INCORRECT_FORMAT;
+		return NULL;
+	}
+
+	bool is_clustered = strncmp(cluster_arg, "clustered", strlen("clustered")) == 0 ? true : false;
+
+	DbOperator* create_idx_operator = malloc(sizeof *create_idx_operator);
+	create_idx_operator->type = CREATE;
+	create_idx_operator->operator_fields.create_operator.type = IDX;
+	create_idx_operator->operator_fields.create_operator.idx_type = idx_type;
+	create_idx_operator->operator_fields.create_operator.clustered = is_clustered;
+
+	return create_idx_operator;
 }
 
 /**

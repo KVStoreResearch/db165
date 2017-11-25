@@ -9,6 +9,8 @@ char* execute_create_tbl(DbOperator* query);
 
 char* execute_create_col(DbOperator* query);
 
+char* execute_create_idx(DbOperator* query);
+
 char* execute_open(DbOperator* query);
 
 char* execute_insert(DbOperator* query);

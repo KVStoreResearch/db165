@@ -47,6 +47,12 @@ SOFTWARE.
 #define EXECUTE_BATCH_MESSAGE "batch_execute"
 #define MAX_NUM_BATCH_OPERATORS 16
 
+// MILESTONE 3: Index
+#define BTREE_IDX_ARG "btree"
+#define SORTED_IDX_ARG "sorted"
+
+#define CLUSTERED_IDX_ARG "clustered"
+#define UNCLUSTERED_IDX_ARG "unclustered"
 
 /**
  * EXTRA
@@ -64,19 +70,34 @@ typedef enum DataType {
 } DataType;
 
 struct Comparator;
-//struct ColumnIndex;
+struct ColumnIndex;
 
 typedef struct Column {
     char name[MAX_SIZE_NAME]; 
     int* data;
-    // You will implement column indexes later. 
-    void* index;
 	size_t length;
 	size_t capacity;
-    //struct ColumnIndex *index;
-    //bool clustered;
+    struct ColumnIndex* index;
+    bool clustered;
 } Column;
 
+typedef struct Fence {
+	int val;
+	void* ptr;
+} Fence;
+
+typedef struct Node {
+	Fence* fences;
+	bool leaf_next;
+	int length;
+	int capacity;
+} Node;
+
+typedef struct ColumnIndex {
+	Node* root; // null if just sorted index
+	int** data;
+	int* positions;
+} ColumnIndex;
 
 /**
  * table
@@ -231,8 +252,14 @@ typedef enum OperatorType {
 typedef enum CreateType {
 	DB,
 	TBL,
-	COL
+	COL,
+	IDX
 } CreateType;
+
+typedef enum IndexType {
+	SORTED,
+	BTREE
+} IndexType;
 
 /*
  * necessary fields for create
@@ -240,8 +267,11 @@ typedef enum CreateType {
 typedef struct CreateOperator {
 	CreateType type;
 	char* name;
-	size_t column_count;
-	Table* table;
+	size_t column_count; // for create_tabe
+	Table* table; // for create_col
+	Column* column; // for create_idx
+	IndexType idx_type; // for create_idx
+	bool clustered; // for create_idx
 } CreateOperator;
 
 /*
@@ -378,6 +408,12 @@ Status create_db(const char* db_name);
 Status create_table(Db* db, const char* name, size_t num_columns);
 
 Status create_column(char *name, Table *table, bool sorted);
+
+Status create_index(Column* col, IndexType type, bool clustered);
+
+Status create_sorted_index(Column* col, bool clustered);
+
+Status create_btree_index(Column* index);
 
 Status load(char* header_line, int* data, int data_length);
 

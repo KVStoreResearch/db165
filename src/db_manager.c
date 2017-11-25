@@ -167,6 +167,39 @@ Status create_column(char* name, Table* table, bool sorted) {
 	return ret_status;
 }
 
+Status create_index(Column* col, IndexType type, bool clustered) {
+	Status ret_status;
+	
+	ret_status = create_sorted_index(col, clustered);
+	if (ret_status.code != OK) {
+		log_err("Error: cannot create sorted index.\n");
+		return ret_status;
+	}
+
+	if (type == BTREE) {
+		ret_status = create_btree_index(col);
+		if (ret_status.code != OK) {
+			log_err("Error: cannot create sorted index.\n");
+			return ret_status;
+		}
+	}
+	log_info("INDEX CREATED in COLUMN %s\n", col->name);	
+	ret_status.code = OK;
+	return ret_status;
+}
+
+//TODO
+Status create_sorted_index(Column* col, bool clustered) {
+	Status ret_status;
+	return ret_status;
+}
+
+//TODO
+Status create_btree_index(Column* col) {
+	Status ret_status;
+	return ret_status;
+}
+
 /* open_db(const char* db_name)
  * Opens a persisted database from disk. File is written in binary mode.
  * - db_name: The name of the database to be loaded

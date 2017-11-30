@@ -93,7 +93,13 @@ typedef struct Node {
 	int capacity;
 } Node;
 
+typedef enum IndexType {
+	BTREE,
+	SORTED
+} IndexType;
+
 typedef struct ColumnIndex {
+	IndexType type;
 	Node* root; // null if just sorted index
 	int** data;
 	int* positions;
@@ -256,18 +262,13 @@ typedef enum CreateType {
 	IDX
 } CreateType;
 
-typedef enum IndexType {
-	SORTED,
-	BTREE
-} IndexType;
-
 /*
  * necessary fields for create
  */
 typedef struct CreateOperator {
 	CreateType type;
 	char* name;
-	size_t column_count; // for create_tabe
+	size_t column_count; // for create_table
 	Table* table; // for create_col
 	Column* column; // for create_idx
 	IndexType idx_type; // for create_idx
@@ -411,9 +412,7 @@ Status create_column(char *name, Table *table, bool sorted);
 
 Status create_index(Column* col, IndexType type, bool clustered);
 
-Status create_sorted_index(Column* col, bool clustered);
-
-Status create_btree_index(Column* index);
+Status construct_index(Column* col, Table* table);
 
 Status load(char* header_line, int* data, int data_length);
 

@@ -158,6 +158,7 @@ Status create_column(char* name, Table* table, bool sorted) {
 	new_column.data = malloc(COLUMN_BASE_CAPACITY * sizeof *new_column.data);
 	new_column.capacity = COLUMN_BASE_CAPACITY;
 	new_column.length = 0;
+	new_column.index = NULL;
 	table->columns[table->columns_size] = new_column;
 	table->columns_size++;
 
@@ -169,37 +170,24 @@ Status create_column(char* name, Table* table, bool sorted) {
 
 Status create_index(Column* col, IndexType type, bool clustered) {
 	Status ret_status;
-	
-	ret_status = create_sorted_index(col, clustered);
-	if (ret_status.code != OK) {
-		log_err("Error: cannot create sorted index.\n");
+	ColumnIndex* index = malloc(sizeof *index);
+	if (!index) {
+		log_err("Could not allocate memory for column index.\n");
+		ret_status.code = ERROR;
 		return ret_status;
 	}
+	index->type = type;
+	index->root = NULL;
+	index->data = NULL;
+	index->positions = NULL;
 
-	if (type == BTREE) {
-		ret_status = create_btree_index(col);
-		if (ret_status.code != OK) {
-			log_err("Error: cannot create sorted index.\n");
-			return ret_status;
-		}
-	}
+	col->index = index; 
+	col->clustered = clustered;
+
 	log_info("INDEX CREATED in COLUMN %s\n", col->name);	
 	ret_status.code = OK;
 	return ret_status;
 }
-
-//TODO
-Status create_sorted_index(Column* col, bool clustered) {
-	Status ret_status;
-	return ret_status;
-}
-
-//TODO
-Status create_btree_index(Column* col) {
-	Status ret_status;
-	return ret_status;
-}
-
 /* open_db(const char* db_name)
  * Opens a persisted database from disk. File is written in binary mode.
  * - db_name: The name of the database to be loaded
@@ -431,6 +419,14 @@ Status load(char* header_line, int* data, int data_length) {
 			return ret_status;
 		}
 	}
+
+	// construct indices if necessary
+	for (int i = 0; i < num_cols; i++) {
+		if (table->columns[i].index) { // need to construct index on data
+			construct_index(&table->columns[i], table);
+		}
+	}
+
 
 	log_info("DB LOADED:\nNAME: %s\n", current_db->name); // 
 	ret_status.code = OK;

@@ -3,6 +3,10 @@
 
 #include "cs165_api.h"
 
+bool table_exists(char* db_name, char* table_name);
+
+bool column_exists(char* db_name, char* table_name, char* column_name);
+
 Table* lookup_table(char* name);
 
 Column* lookup_column(char* name);

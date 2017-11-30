@@ -77,6 +77,7 @@ char* execute_create_db(DbOperator* query) {
 
 char* execute_create_tbl(DbOperator* query) {
 	char* table_name = query->operator_fields.create_operator.name;
+
 	int col_count = query->operator_fields.create_operator.column_count;
     Status ret_status = create_table(current_db, table_name, col_count);
 

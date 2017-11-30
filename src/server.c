@@ -258,7 +258,7 @@ int handle_client_load(int client_socket) {
 		return -1;
 	} 
 
-	Status load_status = load(header_line, buf, total_length_received/ sizeof(int));
+	Status load_status = load(header_line, buf, total_length_received / sizeof(int));
 	if (load_status.code != OK) {
 		log_err("Error occured when loading the database.\n");
 		return -1;

@@ -11,6 +11,7 @@
 #include <stdbool.h>
 #include <stdio.h>
 
+
 /**
  * trims newline characters from a string (in place)
  **/

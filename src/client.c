@@ -149,9 +149,39 @@ int main(void)
 			if (len < 0) {
 				log_err("Server closed connection\n");
 				exit(1);
-			} else if (recv_message.status != OK_DONE) {
-				log_err("Server could not complete request\n");
-				exit(1);
+			} else {
+				switch (recv_message.status) {
+					case OK_WAIT_FOR_RESPONSE:
+					case OK_BEGIN_LOAD:
+					case OK_DONE: 
+						break;
+					case OBJECT_NOT_FOUND:
+						log_err("Could not find object for database operation\n");
+						break;
+					case OBJECT_ALREADY_EXISTS:
+						log_err("Object already exists.\n");
+						break;
+					case FILE_NOT_FOUND:
+						log_err("Could not find specified file.\n");
+						break;
+					case INDEX_ALREADY_EXISTS:
+						log_err("Index already exists.\n");
+						break;
+					case INCORRECT_FORMAT:
+						log_err("Query is in incorrect format.\n");
+						break;
+					case QUERY_UNSUPPORTED:
+						log_err("Query is unsupported.\n");
+						break;
+					case UNKNOWN_COMMAND:
+						log_err("Unknown command.\n");
+						break;
+					default: {
+						log_err("Server could not complete request\n");
+						//exit(1);
+						break;
+					}
+				}
 			}
         }
     }

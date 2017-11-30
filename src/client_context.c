@@ -5,6 +5,37 @@
 #include "client_context.h"
 
 /*
+ * checks if table with table_name already exists in db with db_name
+ */
+bool table_exists(char* db_name, char* table_name) {
+	if (!current_db || strcmp(current_db->name, db_name) != 0)
+		return false;
+	for (size_t i = 0; i < current_db->tables_size; i++)
+		if (strcmp(current_db->tables[i].name, table_name) == 0) 
+			return true; 
+
+	return false;
+}
+
+/*
+ * checks if a column with this name in specified table already exists
+ */
+bool column_exists(char* db_name, char* table_name, char* column_name) {
+	if (!current_db || strcmp(current_db->name, db_name) != 0)
+		return false;
+	Table* table = NULL;
+	for (size_t i = 0; i < current_db->tables_size; i++) {
+		if (strcmp(current_db->tables[i].name, table_name) == 0) {
+			Table* table = &current_db->tables[i];
+			for (size_t j = 0; j < table->columns_size; j++) 
+				if (strcmp(table->columns[j].name, column_name) == 0)
+					return true;
+		}
+	}
+	return false;
+}
+
+/*
  * lookup_table(char* name)
  * Returns pointer to a Table given fully qualified column name
  */

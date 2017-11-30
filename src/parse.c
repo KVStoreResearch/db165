@@ -137,23 +137,22 @@ DbOperator* parse_create(char* create_arguments, message* send_message) {
     tokenizer_copy = to_free = malloc((strlen(create_arguments)+1) * sizeof(char));
     strcpy(tokenizer_copy, create_arguments);
 
-	DbOperator* ret_operator = NULL;
     if (strncmp(tokenizer_copy, "(", 1) == 0) {
         tokenizer_copy++;
         // token stores first argument. Tokenizer copy now points to just past first ","
         token = next_token(&tokenizer_copy, &send_message->status);
         if (send_message->status == INCORRECT_FORMAT) {
-            return ret_operator;
+            return NULL;
         } else {
             // pass off to next parse function. 
             if (strcmp(token, "db") == 0) {
-                ret_operator = parse_create_db(tokenizer_copy, send_message);
+                return parse_create_db(tokenizer_copy, send_message);
             } else if (strcmp(token, "tbl") == 0) {
-                ret_operator = parse_create_tbl(tokenizer_copy, send_message);
+                return parse_create_tbl(tokenizer_copy, send_message);
 			} else if (strcmp(token, "col") == 0) {
-				ret_operator = parse_create_col(tokenizer_copy, send_message);
+				return parse_create_col(tokenizer_copy, send_message);
             } else if (strcmp(token, "idx") == 0) { 
-				ret_operator = parse_create_idx(tokenizer_copy, send_message);
+				return parse_create_idx(tokenizer_copy, send_message);
 			} else {
                 send_message->status = UNKNOWN_COMMAND;
             }
@@ -162,7 +161,7 @@ DbOperator* parse_create(char* create_arguments, message* send_message) {
 		send_message->status = UNKNOWN_COMMAND;
     }
     free(to_free);
-    return ret_operator;
+    return NULL;
 }
 
 
@@ -222,6 +221,12 @@ DbOperator* parse_create_tbl(char* create_tbl_arguments, message* send_message) 
 
     // get the table name free of quotation marks
     table_name = trim_quotes(table_name);
+
+	// check if this table already exists
+	if (table_exists(db_name, table_name)) {
+		send_message->status = OBJECT_ALREADY_EXISTS;
+		return NULL;	
+	}
 
     // read and chop off last char, which should be a ')'
     int last_char = strlen(col_cnt) - 1;
@@ -285,7 +290,7 @@ DbOperator* parse_create_col(char* create_col_arguments, message* send_message) 
 	if (!current_table) {
 		send_message->status = INCORRECT_FORMAT;
 		return NULL;
-	}
+	} 
 
 	DbOperator* create_col_operator = malloc(sizeof *create_col_operator);
 	create_col_operator->type = CREATE;
@@ -296,6 +301,10 @@ DbOperator* parse_create_col(char* create_col_arguments, message* send_message) 
     return create_col_operator;
 }
 
+/**
+ * This method takes in a string representing the arguments to create a index.
+ * It parses those arguments, checks that they are valid, and creates a index.
+ **/
 DbOperator* parse_create_idx(char* create_idx_arguments, message* send_message) {
 	char** create_arguments_index = &create_idx_arguments;
     char* col_name = next_token(create_arguments_index, &send_message->status);
@@ -314,6 +323,7 @@ DbOperator* parse_create_idx(char* create_idx_arguments, message* send_message) 
 	}
 	cluster_arg[last_char] = '\0';
 	
+	// Lookup column to create index on 
 	col_name = trim_quotes(col_name);
 	Column* column = lookup_column(col_name);
 	if (!column) {
@@ -321,6 +331,7 @@ DbOperator* parse_create_idx(char* create_idx_arguments, message* send_message) 
 		return NULL;
 	}
 
+	// check for index type - btree or sorted
 	IndexType idx_type;
 	if (strncmp(idx_type_arg, BTREE_IDX_ARG, strlen(BTREE_IDX_ARG)) == 0) {
 		idx_type = BTREE;
@@ -336,6 +347,7 @@ DbOperator* parse_create_idx(char* create_idx_arguments, message* send_message) 
 	DbOperator* create_idx_operator = malloc(sizeof *create_idx_operator);
 	create_idx_operator->type = CREATE;
 	create_idx_operator->operator_fields.create_operator.type = IDX;
+	create_idx_operator->operator_fields.create_operator.column = column;
 	create_idx_operator->operator_fields.create_operator.idx_type = idx_type;
 	create_idx_operator->operator_fields.create_operator.clustered = is_clustered;
 
@@ -343,7 +355,7 @@ DbOperator* parse_create_idx(char* create_idx_arguments, message* send_message) 
 }
 
 /**
- * parse_insert reads in the arguments for a create statement and 
+ * parse_insert reads in the arguments for a insert statement and 
  * then passes these arguments to a database function to insert a row.
  **/
 DbOperator* parse_insert(char* insert_arguments, message* send_message) {

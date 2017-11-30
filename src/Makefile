@@ -51,11 +51,11 @@ $(DEPSDIR)/stamp $(BUILDSTAMP):
 # dependency on the right side of whichever one requires the file.
 ##
 
-client: client.o utils.o client_load.o
+client: client.o utils.o load.o
 	$(CC) $(CFLAGS) $(DEPCFLAGS) -o $@ $^ $(LDFLAGS) $(LIBS)
 
-server: server.o parse.o utils.o db_manager.o client_context.o db_operators.o db_operators_batch.o \
-	db_manager_batch.o
+server: server.o parse.o utils.o db_core.o client_context.o execute.o execute_batch.o \
+	db_core_batch.o index.o
 	$(CC) $(CFLAGS) $(DEPCFLAGS) -o $@ $^ $(LDFLAGS) $(LIBS)
 
 clean:

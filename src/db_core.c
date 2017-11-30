@@ -56,6 +56,16 @@ Status sync_db(Db* db) {
 		for (size_t j = 0; j < db->tables[i].columns_size; j++) {
 			fwrite(&db->tables[i].columns[j], sizeof(Column), 1, f);
 			size_t num_rows = db->tables[i].columns[j].length;
+			if (db->tables[i].columns[j].index) { // sync index if column has one
+				fwrite(db->tables[i].columns[j].index, sizeof(ColumnIndex), 1, f);
+
+				fwrite(db->tables[i].columns[j].index->positions, sizeof(int), num_rows, f);
+				fwrite(db->tables[i].columns[j].index->data[0], sizeof(int), num_rows, f);
+				if (db->tables[i].columns[j].clustered)
+					for (size_t k = 1; k < db->tables[i].columns_size; k++)
+						fwrite(db->tables[i].columns[j].index->data[k], sizeof(int), num_rows, f);
+
+			}
 			fwrite(db->tables[i].columns[j].data, sizeof(int), num_rows, f);
 		}
 	}
@@ -219,6 +229,30 @@ Status open_db(char* db_name) {
 
 			size_t column_length = current_column->length;
 			size_t column_capacity = current_column->capacity;
+
+			if (current_column->index) {
+				ColumnIndex* index = malloc(sizeof *index);
+				fread(index, sizeof *index, 1, f);
+
+				int* positions = malloc(sizeof(int) * column_capacity);
+
+				fread(positions, sizeof *index->positions, column_length, f);
+				index->positions = positions;
+
+				int** data = NULL;
+				if (current_column->clustered) {
+					index->data = malloc(sizeof *data * current_table->columns_size);
+					for (size_t k = 0; k < current_table->columns_size; k++) {
+						index->data[k] = malloc(sizeof *index->data[k] * column_capacity);
+						fread(index->data[k], sizeof *index->data[k], column_length, f);
+					}
+				} else {
+					index->data = malloc(sizeof *data); 
+					index->data[0] = malloc(sizeof *index->data[0] * column_capacity);
+					fread(index->data[0], sizeof *index->data[0], column_length, f);
+				}
+			}
+
 			current_column->data = malloc(column_capacity * sizeof *current_column->data);
 			fread(current_db->tables[i].columns[j].data, sizeof *current_column->data, column_length, f);
 		}

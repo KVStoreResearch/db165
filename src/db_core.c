@@ -3,6 +3,7 @@
 #include <limits.h>
 
 #include "cs165_api.h"
+#include "index.h"
 #include "utils.h"
 
 
@@ -251,6 +252,7 @@ Status open_db(char* db_name) {
 					index->data[0] = malloc(sizeof *index->data[0] * column_capacity);
 					fread(index->data[0], sizeof *index->data[0], column_length, f);
 				}
+				current_column->index = index;
 			}
 
 			current_column->data = malloc(column_capacity * sizeof *current_column->data);
@@ -285,6 +287,53 @@ Status relational_insert(Table* table, int* values) {
 	return ret_status;
 }
 
+void select_sorted(Column* col, int low, int high, Column* result, Status* status) {
+	int* sorted_copy = col->index->data[0];
+	int lo = 0; 
+	int hi = col->length - 1;
+	int mid;
+
+	while (lo < hi) {
+		mid = (lo + hi) / 2;
+		if (sorted_copy[mid] == low) {
+			break;
+		} else if (low > sorted_copy[mid]) {
+			lo = mid;
+		} else {
+			hi = mid - 1;
+		}
+	}
+
+	int j = mid;
+	while (high > sorted_copy[j])
+		j++;
+
+	for (int i = 0; i < j - mid; i++)
+		result->data[i] = col->index->positions[mid + i];
+
+	result->length = j - mid;
+	return;
+}
+
+void select_index(Column* col, int low, int high, Column* result, Status* status) {
+	switch (col->index->type) {
+		case SORTED:
+			select_sorted(col, low, high, result, status);
+			break;
+		case BTREE:
+			break;
+		default:
+			log_err("Could not perform select using index; unspecified index type.\n");
+			status->code = ERROR;
+			break;
+	}
+
+	// sort results
+	sort(result->data, result->length, NULL, NULL);
+	status->code = OK;
+	return;
+}
+
 Column* select_all(Column* col, int low, int high, Status* status) {
 	Column* result = malloc(sizeof(*result));
 	if (!result) {
@@ -300,12 +349,18 @@ Column* select_all(Column* col, int low, int high, Status* status) {
 	}
 	int result_length = 0;
 
-	for (size_t i = 0; i < col->length; i++) {
-		if (col->data[i] >= low && col->data[i] < high) {
-			result->data[result_length++] = i;
+	if (col->index) {
+		select_index(col, low, high, result, status);
+		if (status->code != OK) 
+			return NULL;
+	} else {
+		for (size_t i = 0; i < col->length; i++) {
+			if (col->data[i] >= low && col->data[i] < high) {
+				result->data[result_length++] = i;
+			}
 		}
+		result->length = result_length;
 	}
-	result->length = result_length;
 
 	return result;
 }

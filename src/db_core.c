@@ -199,6 +199,7 @@ Status create_index(Column* col, IndexType type, bool clustered) {
 	ret_status.code = OK;
 	return ret_status;
 }
+
 /* open_db(const char* db_name)
  * Opens a persisted database from disk. File is written in binary mode.
  * - db_name: The name of the database to be loaded
@@ -257,6 +258,10 @@ Status open_db(char* db_name) {
 
 			current_column->data = malloc(column_capacity * sizeof *current_column->data);
 			fread(current_db->tables[i].columns[j].data, sizeof *current_column->data, column_length, f);
+
+
+			if (current_column->index && current_column->index->type == BTREE) 
+				construct_btree_index(current_column);
 		}
 	}
 	fclose(f);
@@ -327,12 +332,12 @@ void select_sorted(Column* col, int low, int high, Column* result, Status* statu
 	int hi = col->length - 1;
 	int mid;
 
-	while (lo < hi) {
+	while (lo <= hi) {
 		mid = (lo + hi) / 2;
 		if (sorted_copy[mid] == low) {
 			break;
 		} else if (low > sorted_copy[mid]) {
-			lo = mid;
+			lo = mid + 1;
 		} else {
 			hi = mid - 1;
 		}

@@ -414,8 +414,6 @@ Status create_column(char *name, Table *table, bool sorted);
 
 Status create_index(Column* col, IndexType type, bool clustered);
 
-Status construct_index(Column* col, Table* table);
-
 Status load(char* header_line, int* data, int data_length);
 
 Status open_db(char* db_name);

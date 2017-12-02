@@ -54,6 +54,8 @@ SOFTWARE.
 #define CLUSTERED_IDX_ARG "clustered"
 #define UNCLUSTERED_IDX_ARG "unclustered"
 
+#define DEFAULT_BTREE_NODE_CAPACITY 512 
+
 /**
  * EXTRA
  * DataType
@@ -81,26 +83,26 @@ typedef struct Column {
     bool clustered;
 } Column;
 
-typedef struct Fence {
-	int val;
-	void* ptr;
-} Fence;
-
-typedef struct Node {
-	Fence* fences;
-	bool leaf_next;
-	int length;
-	int capacity;
-} Node;
-
 typedef enum IndexType {
 	BTREE,
 	SORTED
 } IndexType;
 
+typedef struct Node {
+	int vals[DEFAULT_BTREE_NODE_CAPACITY];
+	void* children[DEFAULT_BTREE_NODE_CAPACITY+1];
+	bool is_leaf;
+	int length;
+} Node;
+
+typedef struct Btree {
+	Node* root;
+} Btree;
+
+
 typedef struct ColumnIndex {
 	IndexType type;
-	Node* root; // null if just sorted index
+	Btree* root; // null if just sorted index
 	int** data;
 	int* positions;
 } ColumnIndex;

@@ -102,7 +102,7 @@ char* execute_create_col(DbOperator* query) {
 
 char* execute_create_idx(DbOperator* query) {
 	Column* col = query->operator_fields.create_operator.column;
-	IndexType type = query->operator_fields.create_operator.type; 
+	IndexType type = query->operator_fields.create_operator.idx_type; 
 	bool clustered = query->operator_fields.create_operator.clustered;
 
 	Status ret_status = create_index(col, type, clustered);	

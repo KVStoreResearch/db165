@@ -1,5 +1,6 @@
 #include <string.h>
 
+#include "btree.h"
 #include "cs165_api.h"
 #include "index.h"
 #include "utils.h"
@@ -49,9 +50,17 @@ Status construct_sorted_index(Column* column, Table* table, bool clustered) {
 	return ret_status;
 }
 
-Status construct_btree_index(Column* column, Table* table) {
+Status construct_btree_index(Column* column) {
 	Status ret_status;
-	(void) column; (void) table;
+	
+	Btree* index = alloc_btree();
+
+	for (size_t i = 0; i < column->length; i += DEFAULT_BTREE_NODE_CAPACITY) {
+		insert(&column->data[i], index);
+	}
+
+	column->index->root = index;
+
 	return ret_status;
 }
 
@@ -64,7 +73,8 @@ Status construct_index(Column* column, Table* table) {
 	}
 
 	if (column->index->type == BTREE) {
-		ret_status = construct_btree_index(column, table);
+		ret_status = construct_btree_index(column);
+		inOrderTraversal(column->index->root->root);
 		if (ret_status.code != OK) {
 			log_err("Could not construct btree index on column %s\n", column->name);
 			return ret_status;

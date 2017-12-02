@@ -188,7 +188,7 @@ Status create_index(Column* col, IndexType type, bool clustered) {
 		return ret_status;
 	}
 	index->type = type;
-	index->root = NULL;
+	index->tree = NULL;
 	index->data = NULL;
 	index->positions = NULL;
 
@@ -287,6 +287,40 @@ Status relational_insert(Table* table, int* values) {
 	return ret_status;
 }
 
+void select_btree(Column* col, int low, int high, Column* result, Status* status) {
+	Node* current = col->index->tree->root;
+	while (!current->is_leaf) {
+		for (int i = 0; i <= current->length; i++)
+			if ((i == 0 && low < current->vals[i]) 
+					|| (i > 0 && i < current->length && low >= current->vals[i-1] 
+						&& low < current->vals[i])
+					|| (i == current->length && low >= current->vals[i])) {
+				current = current->children[i];
+				break;
+			}
+	}
+
+	int* start_point = NULL;
+	for (int i = 0; i < current->length; i++) {
+		if ((i > 0 && i < current->length - 1 && low >= current->vals[i] 
+					&& low < current->vals[i+1])
+				|| (i == current->length && low >= current->vals[i])) {
+			start_point = (int*) current->children[i];
+			while (*start_point < low)
+				start_point++;
+		}
+	}
+
+	int j = 0;
+	while (*(start_point + j) < high) {
+		result->data[j] = col->index->positions[*start_point + j];
+		j++;
+	}
+	
+	result->length = j;
+	return;
+}
+
 void select_sorted(Column* col, int low, int high, Column* result, Status* status) {
 	int* sorted_copy = col->index->data[0];
 	int lo = 0; 
@@ -321,6 +355,7 @@ void select_index(Column* col, int low, int high, Column* result, Status* status
 			select_sorted(col, low, high, result, status);
 			break;
 		case BTREE:
+			select_btree(col, low, high, result, status);
 			break;
 		default:
 			log_err("Could not perform select using index; unspecified index type.\n");

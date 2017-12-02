@@ -102,7 +102,7 @@ typedef struct Btree {
 
 typedef struct ColumnIndex {
 	IndexType type;
-	Btree* root; // null if just sorted index
+	Btree* tree; // null if just sorted index
 	int** data;
 	int* positions;
 } ColumnIndex;

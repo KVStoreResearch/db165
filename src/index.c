@@ -59,7 +59,7 @@ Status construct_btree_index(Column* column) {
 		insert(&column->data[i], index);
 	}
 
-	column->index->root = index;
+	column->index->tree = index;
 
 	return ret_status;
 }
@@ -74,7 +74,6 @@ Status construct_index(Column* column, Table* table) {
 
 	if (column->index->type == BTREE) {
 		ret_status = construct_btree_index(column);
-		inOrderTraversal(column->index->root->root);
 		if (ret_status.code != OK) {
 			log_err("Could not construct btree index on column %s\n", column->name);
 			return ret_status;

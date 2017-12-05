@@ -329,6 +329,8 @@ typedef struct JoinOperator {
 	char* values_1;
 	char* positions_2;
 	char* values_2;
+	char* result_1;
+	char* result_2;
 	JoinType type;
 } JoinOperator;
 
@@ -446,6 +448,9 @@ Column* select_all(Column* col, int low, int high, Status* status);
 Column* select_fetch(Column* positions, Column* values, int low, int high, Status* status);
 
 Column* fetch(Column* col, Column* positions, Status* status);
+
+Column** join(Column* positions_1, Column* positions_2, Column* values_1, Column* values_2, 
+		JoinType type, Status* status);
 
 Column** select_batch(Column* col, int* lows, int* highs, int num_ops, Status* status);
 

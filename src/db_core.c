@@ -10,6 +10,20 @@
 // currently active database - only need to support one at a time
 Db* current_db;
 
+// reallocates column data to only occupy memory as big as column length 
+// rather than multiple of default column capacity
+// used to relieve memory pressure 
+void realloc_column(Column* col, Status* status) {
+	int* new_data = realloc(col->data, col->length * sizeof *col->data);
+	if (!new_data) {
+		status->code = ERROR;
+		return;
+	}
+	col->data = new_data;
+	col->capacity = col->length;
+	return;
+}
+
 Status db_startup() {
 	Status ret_status;
 
@@ -404,6 +418,9 @@ Column* select_all(Column* col, int low, int high, Status* status) {
 		}
 		result->length = result_length;
 	}
+	realloc_column(result, status);
+	if (status->code == ERROR)
+		return NULL;
 
 	return result;
 }
@@ -429,6 +446,9 @@ Column* select_fetch(Column* positions, Column* values, int low, int high, Statu
 		}
 	}
 	result->length = result_length;
+	realloc_column(result, status);
+	if (status->code == ERROR)
+		return NULL;
 
 	return result;
 }
@@ -440,7 +460,7 @@ Column* fetch(Column* col, Column* positions, Status* status) {
 		return NULL;
 	}
 
-	result->data = malloc(sizeof(int) * col->capacity); 
+	result->data = malloc(sizeof(int) * positions->capacity); 
 	if (!result->data) {
 		status->code = ERROR;
 		return NULL;
@@ -452,8 +472,94 @@ Column* fetch(Column* col, Column* positions, Status* status) {
 		result->data[result_length++] = col->data[positions->data[i]];
 	}
 	result->length = result_length;
+	realloc_column(result, status);
+	if (status->code == ERROR)
+		return NULL;
 
 	return result;
+}
+
+Column** join_nested_loop(Column* positions_a, Column* positions_b, Column* values_a, 
+		Column* values_b, Status* status) {
+	Column** results = malloc(sizeof *results * 2);
+	Column* result_a = malloc(sizeof *result_a);
+	Column* result_b = malloc(sizeof *result_b);
+	if (!results || !result_a || !result_b) {
+		status->code = ERROR;
+		return NULL;
+	}
+
+	result_a->data = malloc(sizeof *result_a->data * positions_a->length);
+	result_b->data  = malloc(sizeof *result_b->data * positions_a->length);
+	if (!result_a->data || !result_b->data) {
+		status->code = ERROR;
+		return NULL;
+	}
+
+	int result_ix = 0;
+	for (size_t i = 0; i < positions_a->length; i++) {
+		for (size_t j = 0; j < positions_b->length; j++) {
+			if (values_a->data[i] == values_b->data[j]) {
+				result_a->data[result_ix] = positions_a->data[i];
+				result_b->data[result_ix++] = positions_b->data[j];
+			}
+		}
+	}
+	result_a->length = result_ix;
+	result_b->length = result_ix;
+
+	realloc_column(result_a, status);
+	realloc_column(result_b, status);
+
+	if (status->code == ERROR) {
+		return NULL;
+	}
+
+	results[0] = result_a;
+	results[1] = result_b;
+	return results;
+}
+
+/*
+Column** join_hash(Column* positions_a, Column* positions_b, Column* values_a, 
+		Column* values_b, Status* status) {
+	Column** results = malloc(sizeof *results * 2);
+	Column* result_a = malloc(sizeof *result_a);
+	Column* result_b = malloc(sizeof *result_b);
+	if (!results || !result_a || !result_b) {
+		status->code = ERROR;
+		return NULL;
+	}
+
+}
+*/
+
+Column** join(Column* positions_1, Column* positions_2, Column* values_1, Column* values_2, 
+		JoinType type, Status* status) {
+	// positions, values A are smaller than positions, values B
+	Column* positions_a = positions_1->length <= positions_2->length ? positions_1 : positions_2;
+	Column* positions_b = positions_a == positions_1 ? positions_2: positions_1; 
+
+	Column* values_a = positions_a == positions_1 ? values_1 : values_2;
+	Column* values_b = positions_a == positions_1 ? values_2 : values_1;
+
+	Column** results = NULL;
+	switch (type) {
+		case NESTED_LOOP: 
+			results = join_nested_loop(positions_a, positions_b, values_a, values_b, status);
+			break;
+		default:
+			status->code = ERROR;
+			return NULL;
+	}
+
+	if (positions_1->length > positions_2->length) {
+		Column* tmp = results[0];
+		results[0] = results[1];
+		results[1] = tmp;
+	}
+	
+	return results ? results : NULL;
 }
 
 Status shutdown_database(Db* db) {

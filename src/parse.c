@@ -90,6 +90,10 @@ DbOperator* parse_command(char* query_command, message* send_message, int client
 		add_handle(context, handle_2, false);
 
 		dbo = parse_join(query_command, send_message);
+		if (dbo) {
+			dbo->operator_fields.join_operator.result_1 = handle_1;
+			dbo->operator_fields.join_operator.result_2 = handle_2;
+		}
 	} else if (strncmp(query_command, "print", 5) == 0) {
 		query_command += 5;
 		dbo = parse_print(query_command, send_message);

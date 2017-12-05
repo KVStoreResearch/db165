@@ -174,7 +174,56 @@ char* execute_fetch(DbOperator* query) {
 }
 
 char* execute_join(DbOperator* query) {
-	return "-- TODO";
+	Status ret_status;
+	JoinOperator op = query->operator_fields.join_operator;
+
+	GeneralizedColumnHandle* positions_1_handle = lookup_client_handle(query->context, op.positions_1);
+	if (!positions_1_handle) {
+		ret_status.code = ERROR;
+		return "-- Error: could not find positions vector";
+	}
+	Column* positions_1 =  positions_1_handle->generalized_column.column_pointer.column;
+
+	GeneralizedColumnHandle* positions_2_handle = lookup_client_handle(query->context, op.positions_2);
+	if (!positions_2_handle) {
+		ret_status.code = ERROR;
+		return "-- Error: could not find positions vector";
+	}
+	Column* positions_2 =  positions_2_handle->generalized_column.column_pointer.column;
+
+	GeneralizedColumnHandle* values_1_handle = lookup_client_handle(query->context, op.values_1);
+	if (!values_1_handle) {
+		ret_status.code = ERROR;
+		return "-- Error: could not find positions vector";
+	}
+	Column* values_1 =  values_1_handle->generalized_column.column_pointer.column;
+
+	GeneralizedColumnHandle* values_2_handle = lookup_client_handle(query->context, op.values_2);
+	if (!positions_2_handle) {
+		ret_status.code = ERROR;
+		return "-- Error: could not find positions vector";
+	}
+	Column* values_2 =  values_2_handle->generalized_column.column_pointer.column;
+
+	Column** result_columns = join(positions_1, positions_2, values_1, values_2, op.type, &ret_status);	
+
+	GeneralizedColumnHandle* result_1_handle = lookup_client_handle(query->context, op.result_1);
+	if (!result_1_handle) {
+		ret_status.code = ERROR;
+		return "-- Error: could not find results vector";
+	}
+	result_1_handle->generalized_column.column_pointer.column = result_columns[0];
+	result_1_handle->generalized_column.column_type = COLUMN;
+
+	GeneralizedColumnHandle* result_2_handle = lookup_client_handle(query->context, op.result_2);
+	if (!result_2_handle) {
+		ret_status.code = ERROR;
+		return "-- Error: could not find results vector";
+	}
+	result_2_handle->generalized_column.column_pointer.column = result_columns[0];
+	result_2_handle->generalized_column.column_type = COLUMN;
+
+	return "-- Joined columns!";
 }
 
 int print_column(Column* column, char** buf_ptr, int* buf_size, int* buf_capacity) {

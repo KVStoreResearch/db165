@@ -29,3 +29,6 @@ Tags
 r*hs # vtune output
 .deps # makefile temps
 
+#test data
+project_tests/*
+project_tests_1M/*

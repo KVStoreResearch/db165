@@ -3,7 +3,7 @@
 
 #include "client_context.h"
 #include "cs165_api.h"
-#include "db_operators.h"
+#include "execute.h"
 #include "utils.h"
 
 #define DEFAULT_PRINT_BUFFER_SIZE 4096
@@ -29,6 +29,8 @@ char* execute_db_operator(DbOperator* query) {
 			return execute_select(query);
 		case FETCH:
 			return execute_fetch(query);
+		case JOIN:
+			return execute_join(query);
 		case PRINT:
 			return execute_print(query);
 		case AVERAGE:
@@ -169,6 +171,10 @@ char* execute_fetch(DbOperator* query) {
 	result_handle->generalized_column.column_type = COLUMN;
 
 	return "-- Fetch executed";
+}
+
+char* execute_join(DbOperator* query) {
+	return "-- TODO";
 }
 
 int print_column(Column* column, char** buf_ptr, int* buf_size, int* buf_capacity) {

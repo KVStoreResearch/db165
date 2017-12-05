@@ -56,6 +56,10 @@ SOFTWARE.
 
 #define DEFAULT_BTREE_NODE_CAPACITY 512 
 
+// MILESTONE 4: Joins
+#define NESTED_LOOP_JOIN_ARG "nested-loop"
+#define HASH_JOIN_ARG "hash"
+
 /**
  * EXTRA
  * DataType
@@ -244,6 +248,7 @@ typedef enum OperatorType {
     OPEN,
 	SELECT,
 	FETCH,
+	JOIN,
 	PRINT,
 	SHUTDOWN,
 	AVERAGE,
@@ -313,6 +318,21 @@ typedef struct FetchOperator {
 } FetchOperator;
 
 /*
+ * necessary fields for fetch
+ */
+typedef enum JoinType {
+	NESTED_LOOP,
+	HASH
+} JoinType;
+typedef struct JoinOperator {
+	char* positions_1;
+	char* values_1;
+	char* positions_2;
+	char* values_2;
+	JoinType type;
+} JoinOperator;
+
+/*
  * necessary fields for print
  */
 typedef struct PrintOperator {
@@ -348,6 +368,7 @@ typedef union OperatorFields {
     OpenOperator open_operator;
 	SelectOperator select_operator;
 	FetchOperator fetch_operator;
+	JoinOperator join_operator;
 	PrintOperator print_operator;
 	UnaryAggOperator unary_aggregate_operator;
 	BinaryAggOperator binary_aggregate_operator;

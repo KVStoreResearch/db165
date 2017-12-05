@@ -22,6 +22,8 @@ DbOperator* parse_select(char* select_arguments, ClientContext* context, message
 
 DbOperator* parse_fetch(char* fetch_arguments, message* send_message);
 
+DbOperator* parse_join(char* join_arguments, message* send_message);
+
 DbOperator* parse_print(char* print_arguments, message* send_message);
 
 DbOperator* parse_unary_aggregate(char* unary_agg_arguments, message* send_message);

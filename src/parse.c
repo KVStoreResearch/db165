@@ -77,6 +77,19 @@ DbOperator* parse_command(char* query_command, message* send_message, int client
 		dbo = parse_fetch(query_command, send_message);
 		if (dbo)
 			dbo->operator_fields.fetch_operator.result_handle = handle;
+	} else if (strncmp(query_command, "join", 4) == 0) {
+		query_command += 4;
+		char* handle_1 = next_token(&handle, &send_message->status);
+		char* handle_2 = next_token(&handle, &send_message->status);
+
+		// didn't specify handles	
+		if (send_message->status == INCORRECT_FORMAT)
+			return NULL;
+
+		add_handle(context, handle_1, false);
+		add_handle(context, handle_2, false);
+
+		dbo = parse_join(query_command, send_message);
 	} else if (strncmp(query_command, "print", 5) == 0) {
 		query_command += 5;
 		dbo = parse_print(query_command, send_message);
@@ -524,6 +537,74 @@ DbOperator* parse_fetch(char* fetch_arguments, message* send_message) {
 	dbo->operator_fields.fetch_operator.column = fetch_column;
 	dbo->operator_fields.fetch_operator.positions_handle = handle;
 
+	return dbo;
+}
+
+DbOperator* parse_join(char* join_arguments, message* send_message) {
+    char *tokenizer_copy, *to_free;
+    tokenizer_copy = to_free = malloc((strlen(join_arguments)+1) * sizeof(char));
+    strcpy(tokenizer_copy, join_arguments);
+
+    // check for leading '('
+    if (strncmp(tokenizer_copy, "(", 1) != 0) {
+		send_message->status = UNKNOWN_COMMAND;
+		return NULL;
+    }
+	tokenizer_copy++;
+	char** command_index = &tokenizer_copy;
+
+	char* values_1 = next_token(command_index, &send_message->status);
+	if (send_message->status == INCORRECT_FORMAT) {
+		return NULL;
+	}
+
+	char* positions_1 = next_token(command_index, &send_message->status);
+	if (send_message->status == INCORRECT_FORMAT) {
+		return NULL;
+	}
+
+	char* values_2 = next_token(command_index, &send_message->status);
+	if (send_message->status == INCORRECT_FORMAT) {
+		return NULL;
+	}
+
+	char* positions_2 = next_token(command_index, &send_message->status);
+	if (send_message->status == INCORRECT_FORMAT) {
+		return NULL;
+	}
+
+	char* join_type_arg = next_token(command_index, &send_message->status);
+	if (send_message->status == INCORRECT_FORMAT) {
+		return NULL;
+	}
+
+	int last_char = strlen(join_type_arg) - 1;
+	if (last_char < 0 || join_type_arg[last_char] != ')') {
+		send_message->status = INCORRECT_FORMAT;
+		return NULL;
+	}
+	// replace final ')' with null-termination character.
+	join_type_arg[last_char] = '\0';
+
+	JoinType type;
+	if (strncmp(join_type_arg, NESTED_LOOP_JOIN_ARG, strlen(NESTED_LOOP_JOIN_ARG)) == 0)
+		type = NESTED_LOOP;
+	else if (strncmp(join_type_arg, HASH_JOIN_ARG, strlen(HASH_JOIN_ARG)) == 0)
+		type = HASH;
+	else {
+		send_message->status = INCORRECT_FORMAT;
+		return NULL;
+	}
+
+
+	// construct fetch operator. 
+	DbOperator* dbo = malloc(sizeof(DbOperator));
+	dbo->type = JOIN;
+	dbo->operator_fields.join_operator.positions_1 = positions_1;
+	dbo->operator_fields.join_operator.values_1 = values_1;
+	dbo->operator_fields.join_operator.positions_2 = positions_2;
+	dbo->operator_fields.join_operator.values_2 = values_2;
+	dbo->operator_fields.join_operator.type = type;
 	return dbo;
 }
 

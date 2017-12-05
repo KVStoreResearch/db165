@@ -317,12 +317,14 @@ void select_btree(Column* col, int low, int high, Column* result, Status* status
 	}
 
 	int j = 0;
+	int position_ix =  start_point - col->data;
 	while (*(start_point + j) < high) {
-		result->data[j] = col->index->positions[*start_point + j];
+		result->data[j] = col->index->positions[position_ix + j];
 		j++;
 	}
 	
 	result->length = j;
+	status->code = OK;
 	return;
 }
 
@@ -351,6 +353,7 @@ void select_sorted(Column* col, int low, int high, Column* result, Status* statu
 		result->data[i] = col->index->positions[mid + i];
 
 	result->length = j - mid;
+	status->code = OK;
 	return;
 }
 

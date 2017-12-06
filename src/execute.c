@@ -8,21 +8,29 @@
 
 #define DEFAULT_PRINT_BUFFER_SIZE 4096
 
+GeneralizedColumnHandle* assign_column_to_handle(Column* col, char* handle, ClientContext* context) {
+	GeneralizedColumnHandle* result = lookup_client_handle(context, handle);
+	if (!result)
+		return NULL;
+
+	result->generalized_column.column_pointer.column = col;
+	result->generalized_column.column_type = COLUMN;
+	return result;
+}
+
 /** execute_DbOperator takes as input the DbOperator and executes the query.
  * This should be replaced in your implementation (and its implementation possibly moved to a different file).
  * It is currently here so that you can verify that your server and client can send messages.
  **/
 char* execute_db_operator(DbOperator* query) {
 	if (!query) 
-		return "-- Error";
+		return "-- Error occurred.";
 	if (!current_db && query->type != CREATE) 
-		return "-- No currently loaded DB";
+		return "-- No currently loaded DB.";
 
 	switch (query->type) {
 		case CREATE:
 			return execute_create(query);
-		case OPEN:
-			return execute_open(query);
 		case INSERT:
 			return execute_insert(query);
 		case SELECT:
@@ -46,7 +54,7 @@ char* execute_db_operator(DbOperator* query) {
 		default:
 			break;
 	}
-    return "165";
+    return "-- Unknown query."; 
 }
 
 char* execute_create(DbOperator* query) {
@@ -74,15 +82,14 @@ char* execute_create_db(DbOperator* query) {
 		return "-- Could not complete create(db) query.";
 	}
 
-	return "-- DB created";
+	return "-- DB created.";
 }
 
 char* execute_create_tbl(DbOperator* query) {
 	char* table_name = query->operator_fields.create_operator.name;
-
 	int col_count = query->operator_fields.create_operator.column_count;
-    Status ret_status = create_table(current_db, table_name, col_count);
 
+    Status ret_status = create_table(current_db, table_name, col_count);
     if (ret_status.code != OK) {
         return "-- Could not complete create(tbl) query";
     }
@@ -115,12 +122,6 @@ char* execute_create_idx(DbOperator* query) {
 	return "-- Index created";
 }
 
-// TODO
-char* execute_open(DbOperator* query) {
-	(void) query;	
-	return "";
-}
-
 char* execute_insert(DbOperator* query) {
 	Status ret_status;
 	InsertOperator op = query->operator_fields.insert_operator;
@@ -143,9 +144,10 @@ char* execute_select(DbOperator* query) {
 		result_col = select_fetch(op.column, op.values, op.low, op.high, &ret_status);
 	}
 
-	GeneralizedColumnHandle* result_handle = lookup_client_handle(query->context, op.result_handle);
-	result_handle->generalized_column.column_pointer.column = result_col;
-	result_handle->generalized_column.column_type = COLUMN;
+	if (!assign_column_to_handle(result_col, op.result_handle, query->context)) {
+		ret_status.code = ERROR;
+		return "-- Error in assigning select result to client context";
+	}
 
 	return "-- Select executed";
 }
@@ -162,13 +164,10 @@ char* execute_fetch(DbOperator* query) {
 	Column* positions_col =  positions_handle->generalized_column.column_pointer.column;
 	Column* result_col = fetch(op.column, positions_col, &ret_status);
 
-	GeneralizedColumnHandle* result_handle = lookup_client_handle(query->context, op.result_handle);
-	if (!result_handle) {
+	if (!assign_column_to_handle(result_col, op.result_handle, query->context)) {
 		ret_status.code = ERROR;
-		return "-- Error: could not find results vector";
+		return "-- Error in assigning fetch result to client context";
 	}
-	result_handle->generalized_column.column_pointer.column = result_col;
-	result_handle->generalized_column.column_type = COLUMN;
 
 	return "-- Fetch executed";
 }
@@ -207,21 +206,15 @@ char* execute_join(DbOperator* query) {
 
 	Column** result_columns = join(positions_1, positions_2, values_1, values_2, op.type, &ret_status);	
 
-	GeneralizedColumnHandle* result_1_handle = lookup_client_handle(query->context, op.result_1);
-	if (!result_1_handle) {
+	if (!assign_column_to_handle(result_columns[0], op.result_1, query->context)) {
 		ret_status.code = ERROR;
-		return "-- Error: could not find results vector";
+		return "-- Error in assigning fetch result to client context";
 	}
-	result_1_handle->generalized_column.column_pointer.column = result_columns[0];
-	result_1_handle->generalized_column.column_type = COLUMN;
 
-	GeneralizedColumnHandle* result_2_handle = lookup_client_handle(query->context, op.result_2);
-	if (!result_2_handle) {
+	if (!assign_column_to_handle(result_columns[1], op.result_2, query->context)) {
 		ret_status.code = ERROR;
-		return "-- Error: could not find results vector";
+		return "-- Error in assigning fetch result to client context";
 	}
-	result_2_handle->generalized_column.column_pointer.column = result_columns[0];
-	result_2_handle->generalized_column.column_type = COLUMN;
 
 	return "-- Joined columns!";
 }
@@ -253,42 +246,69 @@ int print_column(Column* column, char** buf_ptr, int* buf_size, int* buf_capacit
 	return *buf_size;
 }
 
-// NOTE: does not check if buffer can hold result given current buf_size and capacity
-int print_result(Result* result, char** buf_ptr, int* buf_size, int* buf_capacity) {
-	(void) buf_capacity;
-	int r = 0;
-	switch (result->data_type) {
-		case FLOAT:
-			r = sprintf(*buf_ptr + *buf_size, "%.2f", *((double*) result->payload));
-			if (r < 0)
-				return -1;
-			break;
-		case LONG:
-			r = sprintf(*buf_ptr + *buf_size, "%ld", *((long*) result->payload));
-			if (r < 0)
-				return -1;
-			break;
-		default: //default case is data type INT
-			r = sprintf(*buf_ptr + *buf_size, "%d", *((int*) result->payload));
-			if (r < 0)
-				return -1;
-			break;
+int print_columns(Column** columns, int num_columns, char** buf_ptr, int* buf_size,
+		int* buf_capacity) {
+	for (size_t i = 0; i < columns[0]->length; i++) {
+		for (int j = 0; j < num_columns; j++) {
+			int len = columns[j]->data[i] < 0 ? 2 : 1;
+			int data_copy = columns[j]->data[i] < 0 ? columns[j]->data[i] * -1 : columns[j]->data[i] * 1;
+			data_copy /= 10;
+			while (data_copy > 0) {
+				len++;
+				data_copy /= 10;
+			}
+
+			if (*buf_size + len >= *buf_capacity) { // enlarge buffer size
+				char* new_buf = realloc(*buf_ptr, *buf_capacity * 2);
+				if (!new_buf) {
+					log_err("Could not reallocate bigger buffer for printing column %s.\n",
+							columns[i]->name);
+				}
+				*buf_ptr = new_buf;
+				*buf_capacity *= 2;
+			}
+
+			sprintf(*buf_ptr + *buf_size, "%d", columns[j]->data[i]);
+			*buf_size += len;
+			if (j < num_columns - 1) {
+				sprintf(*buf_ptr + *buf_size, ",");
+				*buf_size += 1;
+			}
+		}
+		sprintf(*buf_ptr + *buf_size, "%s", i < columns[0]->length - 1 ? "\n" : "\0");
+		(*buf_size)++;
 	}
-	*buf_size += r;
 	return *buf_size;
 }
 
-int print(GeneralizedColumn generalized_column, char** buf_ptr, int* buf_size, int* buf_capacity) {
-	switch (generalized_column.column_type) {
-		case COLUMN:
-			return print_column(generalized_column.column_pointer.column, buf_ptr, buf_size, 
-					buf_capacity);
-		case RESULT:
-			return print_result(generalized_column.column_pointer.result, buf_ptr, buf_size, 
-					buf_capacity);
-		default:
+// NOTE: does not check if buffer can hold result given current buf_size and capacity
+int print_results(Result** results, int num_results, char** buf_ptr, int* buf_size) {
+	int r = 0;
+	for (int i = 0; i < num_results; i++) {
+		switch (results[i]->data_type) {
+			case FLOAT:
+				r = sprintf(*buf_ptr + *buf_size, "%.2f", *((double*) results[i]->payload));
+				if (r < 0)
+					return -1;
+				break;
+			case LONG:
+				r = sprintf(*buf_ptr + *buf_size, "%ld", *((long*) results[i]->payload));
+				if (r < 0)
+					return -1;
+				break;
+			default: //default case is data type INT
+				r = sprintf(*buf_ptr + *buf_size, "%d", *((int*) results[i]->payload));
+				if (r < 0)
+					return -1;
+				break;
+		}
+		*buf_size += r;
+		int s = sprintf(*buf_ptr + *buf_size, "%s", i < num_results - 1 ? "," : "\n");
+		if (s < 0)
 			return -1;
+		*buf_size += s;
 	}
+	return *buf_size;
 }
 
 char* execute_print(DbOperator* query) {
@@ -300,23 +320,48 @@ char* execute_print(DbOperator* query) {
 	char** buf_ptr = malloc(sizeof *buf_ptr);
 	*buf_ptr = calloc(1, *buf_capacity);
 
-	for (int i = 0; i < op.num_handles; i++) {
-		GeneralizedColumnHandle* generalized_handle = lookup_client_handle(query->context, 
-				op.handles[i]);
-		if (generalized_handle) {
-			if (print(generalized_handle->generalized_column, buf_ptr, buf_size, buf_capacity) < 0)
-				return "-- Print execution failed";
-		} else {
+	GeneralizedColumnHandle* generalized_handle = lookup_client_handle(query->context, 
+			op.handles[0]);
+	if (generalized_handle) {
+		if (generalized_handle->generalized_column.column_type == RESULT) {
+			Result** results = malloc(sizeof *results * op.num_handles);
+			for (int i = 0; i < op.num_handles; i++) {
+				GeneralizedColumnHandle* handle = lookup_client_handle(query->context,
+						op.handles[i]);
+				if (!handle) {
+					free(results);
+					return "-- Could not find column to print.";
+				}
+				results[i] = handle->generalized_column.column_pointer.result;
+			}
+			if (print_results(results, op.num_handles, buf_ptr, buf_size) < 0)
+				return "-- Print execution failed.";
+		} else if (generalized_handle->generalized_column.column_type == COLUMN) {
+			Column** columns = malloc(sizeof *columns * op.num_handles);
+			for (int i = 0; i < op.num_handles; i++) {
+				GeneralizedColumnHandle* handle = lookup_client_handle(query->context,
+						op.handles[i]);
+				if (!handle) {
+					free(columns);
+					return "-- Could not find column to print.";
+				}
+				columns[i] = handle->generalized_column.column_pointer.column;
+			}
+			if (print_columns(columns, op.num_handles, buf_ptr, buf_size, buf_capacity) < 0)
+				return "-- Print execution failed.";
+		}
+	} else {
+		Column** columns = malloc(sizeof *columns * op.num_handles);
+		for (int i = 0; i < op.num_handles; i++) {
 			Column* column = lookup_column(op.handles[i]);
-			if (column) 
-				if (print_column(column, buf_ptr, buf_size, buf_capacity) < 0)
-					return "-- Print execution failed";
+			if (!column) {
+				free(columns);
+				return "-- Could not find column to print.";
+			}
+			columns[i] = column;
 		}
-
-		if (i < op.num_handles - 1) {
-			sprintf(*buf_ptr + *buf_size, ",");
-			*buf_size += 1;
-		}
+		if (print_columns(columns, op.num_handles, buf_ptr, buf_size, buf_capacity) < 0)
+			return "-- Print execution failed.";
 	}
 
 	return *buf_size > 0 

@@ -55,7 +55,7 @@ client: client.o utils.o load.o
 	$(CC) $(CFLAGS) $(DEPCFLAGS) -o $@ $^ $(LDFLAGS) $(LIBS)
 
 server: server.o parse.o utils.o db_core.o client_context.o execute.o execute_batch.o \
-	db_core_batch.o index.o btree.o
+	db_core_batch.o index.o btree.o hash_table.o db_core_utils.o join.o
 	$(CC) $(CFLAGS) $(DEPCFLAGS) -o $@ $^ $(LDFLAGS) $(LIBS)
 
 clean:

@@ -4,6 +4,7 @@
 #include "client_context.h"
 #include "cs165_api.h"
 #include "execute.h"
+#include "join.h"
 #include "utils.h"
 
 #define DEFAULT_PRINT_BUFFER_SIZE 4096

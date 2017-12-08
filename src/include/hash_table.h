@@ -12,6 +12,7 @@ typedef struct Hashtable {
 	Entry** entries;
 } Hashtable;
 
+int hash(int key, int size);
 
 int allocate(Hashtable** ht, int size);
 

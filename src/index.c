@@ -28,6 +28,8 @@ Status construct_sorted_index(Column* column, Table* table, bool clustered) {
 				, column->name);
 		return ret_status;
 	}
+	for (int i = 0; i < column->length; i++)
+		positions[i] = i;
 
 	positions = sort(sorted_copy, column->length, positions, clustered ? table : NULL);
 
@@ -133,12 +135,6 @@ int quickSort(int* arr, int* positions, Table* table, int low, int high) {
 
 // returns vector of positions corresponding to sorted order of arr
 int* sort(int* arr, int arr_len, int* positions, Table* table) {
-	if (positions) {
-		for (int i = 0; i < arr_len; i++) {
-			positions[i] = i;
-		}
-	}
-
 	quickSort(arr, positions, table, 0, arr_len - 1);
 	return positions;
 }

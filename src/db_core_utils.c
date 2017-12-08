@@ -5,7 +5,7 @@
 // rather than multiple of default column capacity
 // used to relieve memory pressure 
 void realloc_column(Column* col, Status* status) {
-	if (col->length == 0)
+	if (col->length == 0 || col->length == col->capacity)
 		return;
 
 	int* new_data = realloc(col->data, col->length * sizeof *col->data);

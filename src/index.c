@@ -62,7 +62,7 @@ Status construct_btree_index(Column* column) {
 	}
 
 	column->index->tree = index;
-
+	ret_status.code = OK;
 	return ret_status;
 }
 
@@ -99,38 +99,37 @@ void swap(int* a, int* b) {
 	*b = tmp;
 }
 
-int partition(int* arr, int* positions, Table* table, int low, int high) {
-	int pivot = arr[(low + high) / 2];
+void quickSort(int* arr, int* positions, Table* table, int low, int high) {
+	if (low >= high) 
+		return;
+	int lo = low;
+	int hi = high;
+	int pivot = arr[low + (high - low) / 2];
+	
+	while (lo <= hi) {
+		while (arr[lo] < pivot)
+			lo++;
+		while (arr[hi] > pivot)
+			hi--;
 
-	while (low <= high) {
-		while (arr[low] < pivot)
-			low++;
-		while (arr[high ]> pivot)
-			high--;
-		if (low <= high) {
-			swap(&arr[low], &arr[high]);
+		if (lo <= hi) {
+			swap(&arr[lo], &arr[hi]);
 			if (positions)
-				swap(&positions[low], &positions[high]);
-			if (table) {
-				for (size_t i = 0; i < table->columns_size; i++) {
-					swap(&table->columns[i].data[low], &table->columns[i].data[high]);
-				}
-			}
-			low++; high--;
+				swap(&positions[lo], &positions[hi]);
+			if (table)
+				for (size_t i = 0; i < table->columns_size; i++) 
+					swap(&table->columns[i].data[lo], &table->columns[i].data[hi]);
+
+			lo++;
+			hi--;
 		}
 	}
-
-	return (low + high) /2;
-}
-
-int quickSort(int* arr, int* positions, Table* table, int low, int high) {
-	if (low < high) {
-		int pi = partition(arr, positions, table, low, high);
-
-		quickSort(arr, positions, table, low, pi - 1);
-		quickSort(arr, positions, table, pi + 1, high);
-	}
-	return 0;
+	
+	if (low < hi) 
+		quickSort(arr, positions, table, low, hi);
+	if (lo < high) 
+		quickSort(arr, positions, table, lo, high);
+	return;
 }
 
 // returns vector of positions corresponding to sorted order of arr

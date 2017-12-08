@@ -25,6 +25,7 @@
 #include "parse.h"
 #include "cs165_api.h"
 #include "execute.h"
+#include "execute_batch.h"
 #include "message.h"
 #include "utils.h"
 #include "client_context.h"

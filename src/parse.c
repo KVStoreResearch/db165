@@ -65,7 +65,10 @@ DbOperator* parse_command(char* query_command, message* send_message, int client
     } else if (strncmp(query_command, "relational_insert", 17) == 0) {
         query_command += 17;
         dbo = parse_insert(query_command, send_message);
-    } else if (strncmp(query_command, "select", 6) == 0) {
+    } else if (strncmp(query_command, "relational_update", 17) == 0) {
+		query_command += 17;
+		dbo = parse_update(query_command, send_message);
+	} else if (strncmp(query_command, "select", 6) == 0) {
 		add_handle(context, handle, false);
 		query_command += 6;
 		dbo = parse_select(query_command, context, send_message); 
@@ -421,6 +424,60 @@ DbOperator* parse_insert(char* insert_arguments, message* send_message) {
         send_message->status = UNKNOWN_COMMAND;
         return NULL;
     }
+}
+
+DbOperator* parse_update(char* update_arguments, message* send_message) {
+    char *tokenizer_copy, *to_free;
+    tokenizer_copy = to_free = malloc((strlen(update_arguments)+1) * sizeof(char));
+    strcpy(tokenizer_copy, update_arguments);
+
+    // check for leading '('
+    if (strncmp(tokenizer_copy, "(", 1) != 0) {
+        send_message->status = INCORRECT_FORMAT;
+        return NULL;
+	}
+	tokenizer_copy++;
+
+	char** command_index = &tokenizer_copy;
+
+	char* column_name = next_token(command_index, &send_message->status);
+	if (send_message->status == INCORRECT_FORMAT) {
+		return NULL;
+	}
+
+	// lookup the table and make sure it exists. 
+	Column* column = lookup_column(column_name);
+	if (!column) {
+		send_message->status = OBJECT_NOT_FOUND;
+		return NULL;
+	}
+
+	char* positions_handle = next_token(command_index, &send_message->status);
+	if (send_message->status == INCORRECT_FORMAT) {
+		return NULL;
+	}
+
+	char* value_str = next_token(command_index, &send_message->status);
+	if (send_message->status == INCORRECT_FORMAT) {
+		return NULL;
+	}
+
+	int last_char = strlen(value_str) - 1;
+	if (value_str[last_char] != ')') {
+		send_message->status = INCORRECT_FORMAT;
+		return NULL;
+	}
+	value_str[last_char] = '\0';
+
+	// make insert operator. 
+	DbOperator* dbo = malloc(sizeof(DbOperator));
+	dbo->type = UPDATE;
+	dbo->operator_fields.update_operator.column = column;
+	dbo->operator_fields.update_operator.positions_handle = positions_handle;
+	dbo->operator_fields.update_operator.value = atoi(value_str);
+
+	free(to_free);
+	return dbo;
 }
 
 /*

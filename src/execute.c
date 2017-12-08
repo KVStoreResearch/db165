@@ -34,6 +34,8 @@ char* execute_db_operator(DbOperator* query) {
 			return execute_create(query);
 		case INSERT:
 			return execute_insert(query);
+		case UPDATE:
+			return execute_update(query);
 		case SELECT:
 			return execute_select(query);
 		case FETCH:
@@ -127,11 +129,29 @@ char* execute_insert(DbOperator* query) {
 	Status ret_status;
 	InsertOperator op = query->operator_fields.insert_operator;
 	ret_status = relational_insert(op.table, op.values);
-	if (ret_status.code == ERROR) {
+	if (ret_status.code == ERROR)
 		return ret_status.error_message;
-	}
 	
 	return "-- Insert executed";
+}
+
+char* execute_update(DbOperator* query) {
+	Status ret_status;
+	UpdateOperator op = query->operator_fields.update_operator;
+
+	GeneralizedColumnHandle* positions_handle = lookup_client_handle(query->context, 
+			op.positions_handle);
+	if (!positions_handle) {
+		ret_status.code = ERROR;
+		return "-- Error: could not find positions vector";
+	}
+	Column* positions_col =  positions_handle->generalized_column.column_pointer.column;
+	ret_status = relational_update(op.column, positions_col, op.value);
+
+	if (ret_status.code == ERROR)
+		return ret_status.error_message;
+
+	return "-- Update executed";
 }
 
 char* execute_select(DbOperator* query) {

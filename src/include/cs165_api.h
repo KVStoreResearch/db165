@@ -245,6 +245,7 @@ typedef struct Comparator {
 typedef enum OperatorType {
     CREATE,
     INSERT,
+	UPDATE,
     OPEN,
 	SELECT,
 	FETCH,
@@ -289,6 +290,15 @@ typedef struct InsertOperator {
     Table* table;
     int* values;
 } InsertOperator;
+
+/*
+ * necessary fields for update 
+ */
+typedef struct UpdateOperator {
+    Column* column;
+	char* positions_handle;
+    int value;
+} UpdateOperator;
 
 /*
  * necessary fields for open
@@ -367,6 +377,7 @@ typedef struct BinaryAggOperator {
 typedef union OperatorFields {
 	CreateOperator create_operator;
     InsertOperator insert_operator;
+	UpdateOperator update_operator;
     OpenOperator open_operator;
 	SelectOperator select_operator;
 	FetchOperator fetch_operator;
@@ -442,6 +453,8 @@ Status load(char* header_line, int* data, int data_length);
 Status open_db(char* db_name);
 
 Status relational_insert(Table* table, int* values);
+
+Status relational_update(Column* column, Column* positions, int value);
 
 Column* select_all(Column* col, int low, int high, Status* status);
 

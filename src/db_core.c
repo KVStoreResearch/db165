@@ -293,6 +293,16 @@ Status relational_insert(Table* table, int* values) {
 	return ret_status;
 }
 
+Status relational_update(Column* column, Column* positions, int value) {
+	Status ret_status;
+	for (int i = 0; i < positions->length; i++) {
+		column->data[positions->data[i]] = value;
+	}
+	
+	ret_status.code = OK;
+	return ret_status;
+}
+
 void select_btree(Column* col, int low, int high, Column* result, Status* status) {
 	Node* current = col->index->tree->root;
 	while (!current->is_leaf) {

@@ -17,4 +17,6 @@ GeneralizedColumnHandle* lookup_client_handle(ClientContext* context, char* hand
 
 int add_handle(ClientContext* context, char* handle, bool result);
 
+int remove_handle(ClientContext* context, char* handle);
+
 #endif

@@ -449,6 +449,17 @@ bool execute_unary_aggregate_column(Column* column, Result* result, OperatorType
 char* execute_unary_aggregate(DbOperator* query) {
 	UnaryAggOperator op = query->operator_fields.unary_aggregate_operator;
 
+	GeneralizedColumnHandle* generalized_handle = lookup_client_handle(query->context, op.handle);
+	Column* column = NULL;
+	if (!generalized_handle)
+		column = lookup_column(op.handle);
+	else 
+		column = generalized_handle->generalized_column.column_pointer.column;
+	if (column->length <= 0) {
+		remove_handle(query->context, op.result_handle);	
+		return "-- Could not execute aggregate; column is empty";
+	}
+
 	GeneralizedColumnHandle* result_handle = lookup_client_handle(query->context, op.result_handle);
 	if (!result_handle) {
 		return "Error: could not find results vector";
@@ -459,12 +470,6 @@ char* execute_unary_aggregate(DbOperator* query) {
 	result_handle->generalized_column.column_type = RESULT;
 	result_handle->generalized_column.column_pointer.result = result;
 
-	GeneralizedColumnHandle* generalized_handle = lookup_client_handle(query->context, op.handle);
-	Column* column = NULL;
-	if (!generalized_handle)
-		column = lookup_column(op.handle);
-	else 
-		column = generalized_handle->generalized_column.column_pointer.column;
 
 	return execute_unary_aggregate_column(column, result, query->type) 
 		? "-- Unary aggregation executed." 

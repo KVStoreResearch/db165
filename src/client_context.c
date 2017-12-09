@@ -136,3 +136,19 @@ int add_handle(ClientContext* context, char* handle, bool result) {
 
 	return 0;
 }
+
+/*
+ * remove_handle(ClientContext* context, char* handle)
+ *
+ */
+int remove_handle(ClientContext* context, char* handle) {
+	for (int i = 0; i < context->chandles_in_use; i++) {
+		if (strncmp(context->chandle_table[i].name, handle, strlen(handle)) == 0) {
+			for (int j = i; j < context->chandles_in_use - 1; j++)
+				context->chandle_table[j] = context->chandle_table[j+1];
+			context->chandles_in_use--;
+		}		
+	}
+	return 0;
+}
+

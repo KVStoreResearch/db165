@@ -306,7 +306,7 @@ Status relational_insert(Table* table, int* values) {
 
 Status relational_update(Column* column, Column* positions, Table* table, int value) {
 	Status ret_status;
-	for (int i = 0; i < positions->length; i++) {
+	for (size_t i = 0; i < positions->length; i++) {
 		column->data[positions->data[i]] = value;
 
 		if (column->num_updated == UPDATE_BUF_SIZE) { // update buffer full, reconstruct index
@@ -324,8 +324,8 @@ Status relational_update(Column* column, Column* positions, Table* table, int va
 
 Status relational_delete(Table* table, Column* positions) {
 	Status ret_status;
-	for (int i = 0; i < positions->length; i++) {
-		for (int j = 0; j < table->columns_size; j++) {
+	for (size_t i = 0; i < positions->length; i++) {
+		for (size_t j = 0; j < table->columns_size; j++) {
 			Column* col = &table->columns[j];
 			if (col->num_deleted == DELETE_BUF_SIZE) {
 				update_column_with_deletes(col);
@@ -453,10 +453,10 @@ void select_index(Column* col, int low, int high, Column* result, Status* status
 }
 
 void update_result_with_deletes(Column* result, int* deleted, int num_deleted) {
-	for (int i = 0; i < result->length; i++) {
+	for (size_t i = 0; i < result->length; i++) {
 		for (int j = 0; j < num_deleted; j++) {
 			if (result->data[i] == deleted[j]) {
-				for (int k = i; k < result->length - 1; k++)
+				for (size_t k = i; k < result->length - 1; k++)
 					result->data[k] = result->data[k+1];
 				result->length--;
 				i--;

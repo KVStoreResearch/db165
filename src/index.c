@@ -40,7 +40,7 @@ Status construct_sorted_index(Column* column, Table* table, bool clustered) {
 			return ret_status;
 		}
 
-		for (int i = 0; i < column->length; i++)
+		for (size_t i = 0; i < column->length; i++)
 			positions[i] = i;
 
 		sort(sorted_copy, column->length, positions, NULL);
@@ -207,7 +207,7 @@ int* sort(int* arr, int arr_len, int* positions, Table* table) {
 	int** t = NULL;
 	if (table)  {
 		t = malloc(sizeof *t * table->columns_size);
-		for (int i = 0; i < table->columns_size; i++) {
+		for (size_t i = 0; i < table->columns_size; i++) {
 			t[i] = table->columns[i].data;
 		}
 	}

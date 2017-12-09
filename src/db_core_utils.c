@@ -27,7 +27,7 @@ void update_column_with_deletes(Column* col) {
 				col->data[j - i] = col->data[j + 1];
 		}
 		else {
-			for (int j = col->deleted_positions[col->num_deleted-1]; j < col->length; j++)
+			for (int j = col->deleted_positions[col->num_deleted-1]; j < (int) col->length; j++)
 				col->data[j - i] = col->data[j + 1];
 		}
 	}

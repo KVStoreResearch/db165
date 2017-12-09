@@ -23,7 +23,7 @@ bool table_exists(char* db_name, char* table_name) {
 bool column_exists(char* db_name, char* table_name, char* column_name) {
 	if (!current_db || strcmp(current_db->name, db_name) != 0)
 		return false;
-	Table* table = NULL;
+
 	for (size_t i = 0; i < current_db->tables_size; i++) {
 		if (strcmp(current_db->tables[i].name, table_name) == 0) {
 			Table* table = &current_db->tables[i];

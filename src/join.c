@@ -76,7 +76,7 @@ Column** hash_partition(Column* positions_a, Column* positions_b, Column* values
 		}
 	}
 
-	for (int i = 0; i < values_a->length; i++) {
+	for (size_t i = 0; i < values_a->length; i++) {
 		int h = hash(values_a->data[i], num_partitions);
 		Column* result_p_a = result[h*4];
 		Column* result_v_a = result[h*4 + 1];
@@ -84,7 +84,7 @@ Column** hash_partition(Column* positions_a, Column* positions_b, Column* values
 		result_v_a->data[result_v_a->length++] = values_a->data[i];
 	}
 
-	for (int i = 0; i < values_a->length; i++) {
+	for (size_t i = 0; i < values_a->length; i++) {
 		int h = hash(values_b->data[i], num_partitions);
 		Column* result_p_b = result[h*4 + 2];
 		Column* result_v_b = result[h*4 + 3];

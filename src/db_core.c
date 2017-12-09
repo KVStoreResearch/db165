@@ -311,7 +311,6 @@ Status relational_update(Column* column, Column* positions, Table* table, int va
 
 		if (column->num_updated == UPDATE_BUF_SIZE) { // update buffer full, reconstruct index
 			construct_index(column, table);	
-			column->stale_index = false;
 			column->num_updated = 0;
 		} else {
 			column->stale_index = true;
@@ -419,7 +418,6 @@ void select_index(Column* col, int low, int high, Column* result, Status* status
 	if (col->stale_index) {
 		Table* table = table_for_column(col);
 		construct_index(col, table);
-		col->stale_index = false;
 	}
 
 	switch (col->index->type) {

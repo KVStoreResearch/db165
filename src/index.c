@@ -87,6 +87,7 @@ Status construct_index(Column* column, Table* table) {
 		}
 	}
 
+	column->stale_index = false;
 	ret_status.code = OK;
 	log_info("CONSTRUCTED INDEX ON COLUMN %s\n", column->name);
 	return ret_status;

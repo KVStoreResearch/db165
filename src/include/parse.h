@@ -20,6 +20,8 @@ DbOperator* parse_insert(char* insert_arguments, message* send_message);
 
 DbOperator* parse_update(char* update_arguments, message* send_message);
 
+DbOperator* parse_delete(char* delete_arguments, message* send_message);
+
 DbOperator* parse_select(char* select_arguments, ClientContext* context, message* send_message);
 
 DbOperator* parse_fetch(char* fetch_arguments, message* send_message);

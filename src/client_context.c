@@ -54,6 +54,26 @@ Table* lookup_table(char *name) {
 }
 
 /*
+ * lookup_table_for_column(char* name)
+ * Returns pointer to table that has column with column name
+ */
+
+Table* lookup_table_for_column(char* name) {
+	char* name_copy = strdup(name);
+	char* db_name = strsep(&name_copy, ".");
+	char* table_name = strsep(&name_copy, ".");
+	if (!db_name || !table_name) {
+		return NULL;
+	}
+	char* db_table_name = (char*) malloc(strlen(db_name) + strlen(table_name) + 1);
+	strcpy(db_table_name, db_name);
+	strcat(db_table_name, ".");
+	strcat(db_table_name, table_name);
+
+	return lookup_table(db_table_name);
+}
+
+/*
  * lookup_column(char* name)
  * Returns pointer to a Column given fully qualified column name
  */

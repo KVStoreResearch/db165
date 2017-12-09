@@ -9,6 +9,8 @@ bool column_exists(char* db_name, char* table_name, char* column_name);
 
 Table* lookup_table(char* name);
 
+Table* lookup_table_for_column(char* name);
+
 Column* lookup_column(char* name);
 
 GeneralizedColumnHandle* lookup_client_handle(ClientContext* context, char* handle);

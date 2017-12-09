@@ -2,6 +2,7 @@
 #include <string.h> 
 #include <limits.h>
 
+#include "client_context.h"
 #include "cs165_api.h"
 #include "db_core_utils.h"
 #include "index.h"
@@ -61,7 +62,9 @@ Status sync_db(Db* db) {
 			if (db->tables[i].columns[j].index) { // sync index if column has one
 				fwrite(db->tables[i].columns[j].index, sizeof(ColumnIndex), 1, f);
 
-				fwrite(db->tables[i].columns[j].index->positions, sizeof(int), num_rows, f);
+				if (!db->tables[i].columns[j].clustered)
+					fwrite(db->tables[i].columns[j].index->positions, sizeof(int), num_rows, f);
+
 				fwrite(db->tables[i].columns[j].index->data[0], sizeof(int), num_rows, f);
 				if (db->tables[i].columns[j].clustered)
 					for (size_t k = 1; k < db->tables[i].columns_size; k++)
@@ -152,7 +155,6 @@ Status create_table(Db* db, const char* name, size_t num_columns) {
  * - table: Pointer to the table where the column will be added.
  * - sorted: Boolean value indicates whether or not the column is sorted.
  * Returns the status of the operation; status.code = OK on success, ERROR on failure
- * TODO: implement logic to handle sorted/unsorted
  */
 Status create_column(char* name, Table* table, bool sorted) {
 	(void) sorted;
@@ -170,6 +172,9 @@ Status create_column(char* name, Table* table, bool sorted) {
 	new_column.data = malloc(COLUMN_BASE_CAPACITY * sizeof *new_column.data);
 	new_column.capacity = COLUMN_BASE_CAPACITY;
 	new_column.length = 0;
+	new_column.num_updated = 0;
+	new_column.num_deleted = 0;
+	new_column.stale_index = false;
 	new_column.index = NULL;
 	table->columns[table->columns_size] = new_column;
 	table->columns_size++;
@@ -237,10 +242,13 @@ Status open_db(char* db_name) {
 				ColumnIndex* index = malloc(sizeof *index);
 				fread(index, sizeof *index, 1, f);
 
-				int* positions = malloc(sizeof(int) * column_capacity);
-
-				fread(positions, sizeof *index->positions, column_length, f);
-				index->positions = positions;
+				if (!current_column->clustered) {
+					int* positions = malloc(sizeof(int) * column_capacity);
+					fread(positions, sizeof *index->positions, column_length, f);
+					index->positions = positions;
+				} else {
+					index->positions = NULL;
+				}
 
 				int** data = NULL;
 				if (current_column->clustered) {
@@ -286,6 +294,9 @@ Status relational_insert(Table* table, int* values) {
 		}
 		column->data[table->length] = values[i];
 		column->length++;
+
+		if (column->index)
+			column->stale_index = true;
 	}	
 	table->length++;
 	
@@ -293,12 +304,39 @@ Status relational_insert(Table* table, int* values) {
 	return ret_status;
 }
 
-Status relational_update(Column* column, Column* positions, int value) {
+Status relational_update(Column* column, Column* positions, Table* table, int value) {
 	Status ret_status;
 	for (int i = 0; i < positions->length; i++) {
 		column->data[positions->data[i]] = value;
+
+		if (column->num_updated == UPDATE_BUF_SIZE) { // update buffer full, reconstruct index
+			construct_index(column, table);	
+			column->stale_index = false;
+			column->num_updated = 0;
+		} else {
+			column->stale_index = true;
+			column->updated_positions[column->num_updated++] = positions->data[i];
+		}
 	}
-	
+
+	ret_status.code = OK;
+	return ret_status;
+}
+
+Status relational_delete(Table* table, Column* positions) {
+	Status ret_status;
+	for (int i = 0; i < positions->length; i++) {
+		for (int j = 0; j < table->columns_size; j++) {
+			Column* col = &table->columns[j];
+			if (col->num_deleted == DELETE_BUF_SIZE) {
+				update_column_with_deletes(col);
+				construct_index(col, table);
+			} else {
+				col->deleted_positions[col->num_deleted++] = positions->data[i];
+			}
+		}
+	}
+
 	ret_status.code = OK;
 	return ret_status;
 }
@@ -317,20 +355,28 @@ void select_btree(Column* col, int low, int high, Column* result, Status* status
 	}
 
 	int* start_point = NULL;
-	for (int i = 0; i < current->length; i++) {
-		if ((i > 0 && i < current->length - 1 && low >= current->vals[i] 
+	for (int i = 0; i <= current->length; i++) {
+		if ((i < current->length && i < current->length - 1 && low >= current->vals[i] 
 					&& low < current->vals[i+1])
-				|| (i == current->length && low >= current->vals[i])) {
+				|| (i == current->length && low >= current->vals[i])
+				|| (i == 0 && low < current->vals[i])) {
 			start_point = (int*) current->children[i];
-			while (*start_point < low)
+			while (*start_point < low) {
 				start_point++;
+			}
+			break;
 		}
+	}
+	if (!start_point) { // no results
+		result->length = 0; 
+		return;
 	}
 
 	int j = 0;
-	int position_ix =  start_point - col->data;
+	int position_ix =  start_point - col->index->data[0];
 	while (*(start_point + j) < high) {
-		result->data[j] = col->index->positions[position_ix + j];
+		int p = col->clustered ? position_ix + j : col->index->positions[position_ix + j];
+		result->data[j] = p;
 		j++;
 	}
 	
@@ -360,8 +406,9 @@ void select_sorted(Column* col, int low, int high, Column* result, Status* statu
 	while (high > sorted_copy[j])
 		j++;
 
-	for (int i = 0; i < j - mid; i++)
-		result->data[i] = col->index->positions[mid + i];
+	for (int i = 0; i < j - mid; i++) {
+		result->data[i] = col->clustered ? mid + i : col->index->positions[mid + i];
+	}
 
 	result->length = j - mid;
 	status->code = OK;
@@ -369,6 +416,12 @@ void select_sorted(Column* col, int low, int high, Column* result, Status* statu
 }
 
 void select_index(Column* col, int low, int high, Column* result, Status* status) {
+	if (col->stale_index) {
+		Table* table = table_for_column(col);
+		construct_index(col, table);
+		col->stale_index = false;
+	}
+
 	switch (col->index->type) {
 		case SORTED:
 			select_sorted(col, low, high, result, status);
@@ -382,10 +435,37 @@ void select_index(Column* col, int low, int high, Column* result, Status* status
 			break;
 	}
 
-	// sort results
 	sort(result->data, result->length, NULL, NULL);
+	sort(col->updated_positions, col->num_updated, NULL, NULL);
+
+/*	for (int i = 0; i < result->length; i++) {
+		for (int j = 0; j < col->num_updated; j++) {
+			if (result->data[i] == col->updated_positions[j] 
+					&& !(col->data[result->data[i]] >= low && col->data[result->data[i]] < high)) {
+				for (int k = 0; k < result->length - 1; k++) 
+					result->data[i] = result->data[i+1];
+				i--;
+				result->length--;
+			}
+		}
+	}
+	*/
 	status->code = OK;
 	return;
+}
+
+void update_result_with_deletes(Column* result, int* deleted, int num_deleted) {
+	for (int i = 0; i < result->length; i++) {
+		for (int j = 0; j < num_deleted; j++) {
+			if (result->data[i] == deleted[j]) {
+				for (int k = i; k < result->length - 1; k++)
+					result->data[k] = result->data[k+1];
+				result->length--;
+				i--;
+				break;
+			}
+		}
+	}
 }
 
 Column* select_all(Column* col, int low, int high, Status* status) {
@@ -418,6 +498,8 @@ Column* select_all(Column* col, int low, int high, Status* status) {
 	realloc_column(result, status);
 	if (status->code == ERROR)
 		return NULL;
+
+	update_result_with_deletes(result, col->deleted_positions, col->num_deleted);
 
 	return result;
 }

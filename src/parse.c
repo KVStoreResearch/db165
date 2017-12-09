@@ -68,6 +68,9 @@ DbOperator* parse_command(char* query_command, message* send_message, int client
     } else if (strncmp(query_command, "relational_update", 17) == 0) {
 		query_command += 17;
 		dbo = parse_update(query_command, send_message);
+	} else if (strncmp(query_command, "relational_delete", 17) == 0) {
+		query_command += 17;
+		dbo = parse_delete(query_command, send_message);
 	} else if (strncmp(query_command, "select", 6) == 0) {
 		add_handle(context, handle, false);
 		query_command += 6;
@@ -452,6 +455,12 @@ DbOperator* parse_update(char* update_arguments, message* send_message) {
 		return NULL;
 	}
 
+	Table* table = lookup_table_for_column(column_name);
+	if (!table) {
+		send_message->status = OBJECT_NOT_FOUND;
+		return NULL;
+	}
+
 	char* positions_handle = next_token(command_index, &send_message->status);
 	if (send_message->status == INCORRECT_FORMAT) {
 		return NULL;
@@ -473,8 +482,57 @@ DbOperator* parse_update(char* update_arguments, message* send_message) {
 	DbOperator* dbo = malloc(sizeof(DbOperator));
 	dbo->type = UPDATE;
 	dbo->operator_fields.update_operator.column = column;
+	dbo->operator_fields.update_operator.table = table;
 	dbo->operator_fields.update_operator.positions_handle = positions_handle;
 	dbo->operator_fields.update_operator.value = atoi(value_str);
+
+	free(to_free);
+	return dbo;
+}
+
+DbOperator* parse_delete(char* delete_arguments, message* send_message) {
+    char *tokenizer_copy, *to_free;
+    tokenizer_copy = to_free = malloc((strlen(delete_arguments)+1) * sizeof(char));
+    strcpy(tokenizer_copy, delete_arguments);
+
+    // check for leading '('
+    if (strncmp(tokenizer_copy, "(", 1) != 0) {
+        send_message->status = INCORRECT_FORMAT;
+        return NULL;
+	}
+	tokenizer_copy++;
+
+	char** command_index = &tokenizer_copy;
+
+	char* table_name = next_token(command_index, &send_message->status);
+	if (send_message->status == INCORRECT_FORMAT) {
+		return NULL;
+	}
+
+	// lookup the table and make sure it exists. 
+	Table* table = lookup_table(table_name);
+	if (!table) {
+		send_message->status = OBJECT_NOT_FOUND;
+		return NULL;
+	}
+
+	char* positions_handle = next_token(command_index, &send_message->status);
+	if (send_message->status == INCORRECT_FORMAT) {
+		return NULL;
+	}
+
+	int last_char = strlen(positions_handle) - 1;
+	if (positions_handle[last_char] != ')') {
+		send_message->status = INCORRECT_FORMAT;
+		return NULL;
+	}
+	positions_handle[last_char] = '\0';
+
+	// make insert operator. 
+	DbOperator* dbo = malloc(sizeof(DbOperator));
+	dbo->type = DELETE;
+	dbo->operator_fields.delete_operator.table = table;
+	dbo->operator_fields.delete_operator.positions_handle = positions_handle;
 
 	free(to_free);
 	return dbo;

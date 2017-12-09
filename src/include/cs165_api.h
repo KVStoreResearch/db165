@@ -60,6 +60,10 @@ SOFTWARE.
 #define NESTED_LOOP_JOIN_ARG "nested-loop"
 #define HASH_JOIN_ARG "hash"
 
+//MILESTONE 5: Updates
+#define UPDATE_BUF_SIZE 128
+#define DELETE_BUF_SIZE 128
+
 /**
  * EXTRA
  * DataType
@@ -81,6 +85,11 @@ struct ColumnIndex;
 typedef struct Column {
     char name[MAX_SIZE_NAME]; 
     int* data;
+	bool stale_index;
+	int updated_positions[UPDATE_BUF_SIZE];
+	int num_updated;
+	int deleted_positions[DELETE_BUF_SIZE];
+	int num_deleted;
 	size_t length;
 	size_t capacity;
     struct ColumnIndex* index;
@@ -246,6 +255,7 @@ typedef enum OperatorType {
     CREATE,
     INSERT,
 	UPDATE,
+	DELETE,
     OPEN,
 	SELECT,
 	FETCH,
@@ -297,8 +307,17 @@ typedef struct InsertOperator {
 typedef struct UpdateOperator {
     Column* column;
 	char* positions_handle;
+	Table* table;
     int value;
 } UpdateOperator;
+
+/*
+ * necessary fields for delete
+ */
+typedef struct DeleteOperator {
+    Table* table;
+	char* positions_handle;
+} DeleteOperator;
 
 /*
  * necessary fields for open
@@ -334,6 +353,7 @@ typedef enum JoinType {
 	NESTED_LOOP,
 	HASH
 } JoinType;
+
 typedef struct JoinOperator {
 	char* positions_1;
 	char* values_1;
@@ -378,6 +398,7 @@ typedef union OperatorFields {
 	CreateOperator create_operator;
     InsertOperator insert_operator;
 	UpdateOperator update_operator;
+	DeleteOperator delete_operator;
     OpenOperator open_operator;
 	SelectOperator select_operator;
 	FetchOperator fetch_operator;
@@ -454,7 +475,9 @@ Status open_db(char* db_name);
 
 Status relational_insert(Table* table, int* values);
 
-Status relational_update(Column* column, Column* positions, int value);
+Status relational_update(Column* column, Column* positions, Table* table, int value);
+
+Status relational_delete(Table* table, Column* positions);
 
 Column* select_all(Column* col, int low, int high, Status* status);
 

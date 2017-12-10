@@ -10,16 +10,10 @@ int init_batch(BatchOperator* batch) {
 	batch->num_ops_select = 0;
 	batch->ops_capacity_select = DEFAULT_BATCH_CAPACITY;
 	batch->batch_select = malloc(sizeof *(batch->batch_select) * batch->ops_capacity_select);
-	batch->batch_select->lows = malloc(sizeof *(batch->batch_select->lows) * 
-			batch->ops_capacity_select);
-	batch->batch_select->highs = malloc(sizeof *(batch->batch_select->highs) * 
-			batch->ops_capacity_select);
 
 	batch->num_ops_fetch = 0;
 	batch->ops_capacity_fetch = DEFAULT_BATCH_CAPACITY;
 	batch->batch_fetch = malloc(sizeof *(batch->batch_fetch) * batch->ops_capacity_fetch);
-	batch->batch_fetch->positions_handles = malloc(sizeof *(batch->batch_fetch->positions_handles) *
-			batch->ops_capacity_select);
 	if (!batch->batch_select || !batch->batch_fetch || !batch->batch_select->lows 
 			|| !batch->batch_select->highs || !batch->batch_fetch->positions_handles)
 		return -1;
@@ -33,8 +27,10 @@ int init_batch(BatchOperator* batch) {
 	return 0;
 }
 
-BatchSelect* find_select(Column* col, BatchOperator* batch) { for (int i = 0; i < batch->num_ops_select; i++) {
-		if (batch->batch_select[i].column == col)
+BatchSelect* find_select(Column* col, BatchOperator* batch) { 
+	for (int i = 0; i < batch->num_ops_select; i++) {
+		if (batch->batch_select[i].column == col 
+				&& batch->batch_select[i].num_ops < MAX_NUM_SHARED_SCAN)
 			return &batch->batch_select[i];
 	}
 	return NULL;
@@ -51,19 +47,7 @@ BatchFetch* find_fetch(Column* col, BatchOperator* batch) {
 int handle_select_operator(DbOperator* op, BatchOperator* batch) {
 	SelectOperator select_op = op->operator_fields.select_operator;
 	BatchSelect* match = find_select(select_op.column, batch);
-	if (match) {
-		if (match->num_ops == match->ops_capacity) {
-			match->ops_capacity *= 2;
-			int* new_lows = realloc(match->lows, sizeof *new_lows * match->ops_capacity);
-			int* new_highs = realloc(match->highs, sizeof *new_highs * match->ops_capacity);
-			char** new_results = realloc(match->result_handles, 
-					sizeof *new_results * match->ops_capacity);
-			if (!new_lows || !new_highs)
-				return -1;
-			match->lows = new_lows;
-			match->highs = new_highs;
-			match->result_handles = new_results;
-		}
+	if (match && match->num_ops < MAX_NUM_SHARED_SCAN) {
 		match->lows[match->num_ops] = select_op.low;
 		match->highs[match->num_ops] = select_op.high;
 		match->result_handles[match->num_ops] = malloc(strlen(select_op.result_handle));
@@ -84,17 +68,7 @@ int handle_select_operator(DbOperator* op, BatchOperator* batch) {
 	BatchSelect* new_select = &batch->batch_select[batch->num_ops_select];
 	new_select->context = op->context;
 	new_select->column = select_op.column;
-	new_select->ops_capacity = DEFAULT_BATCH_CAPACITY; 
 	new_select->num_ops = 1;
-	new_select->lows = malloc(sizeof *new_select->lows * new_select->ops_capacity);
-	if (!new_select->lows)
-		return -1;
-	new_select->highs = malloc(sizeof *new_select->highs * new_select->ops_capacity);
-	if (!new_select->highs)
-		return -1;
-	new_select->result_handles = malloc(sizeof *new_select->result_handles * new_select->ops_capacity);
-	if (!new_select->result_handles)
-		return -1;
 
 	new_select->lows[0] = select_op.low;
 	new_select->highs[0] = select_op.high;
@@ -108,15 +82,7 @@ int handle_select_operator(DbOperator* op, BatchOperator* batch) {
 int handle_fetch_operator(DbOperator* op, BatchOperator* batch) {
 	FetchOperator fetch_op = op->operator_fields.fetch_operator;
 	BatchFetch* match = find_fetch(fetch_op.column, batch);
-	if (match) {
-		if (match->num_ops == match->ops_capacity) {
-			match->ops_capacity *= 2;
-			char** new_positions = realloc(match->positions_handles, 
-					sizeof *new_positions * match->ops_capacity);
-			char** new_results = realloc(match->result_handles, 
-					sizeof *new_results * match->ops_capacity);
-			match->result_handles = new_results;
-		}
+	if (match && match->num_ops < MAX_NUM_SHARED_SCAN) {
 		match->positions_handles[match->num_ops] = fetch_op.positions_handle;
 		match->result_handles[match->num_ops] = malloc(strlen(fetch_op.result_handle));
 		strcpy(match->result_handles[match->num_ops], fetch_op.result_handle);
@@ -135,14 +101,7 @@ int handle_fetch_operator(DbOperator* op, BatchOperator* batch) {
 	BatchFetch* new_fetch = &batch->batch_fetch[batch->num_ops_fetch];
 	new_fetch->context = op->context;
 	new_fetch->column = fetch_op.column;
-	new_fetch->ops_capacity = DEFAULT_BATCH_CAPACITY; 
 	new_fetch->num_ops = 1;
-	new_fetch->positions_handles = malloc(sizeof *new_fetch->positions_handles * new_fetch->ops_capacity);
-	if (!new_fetch->positions_handles)
-		return -1;
-	new_fetch->result_handles = malloc(sizeof *new_fetch->result_handles * new_fetch->ops_capacity);
-	if (!new_fetch->result_handles)
-		return -1;
 
 	new_fetch->positions_handles[0] = fetch_op.result_handle;
 	new_fetch->result_handles[0] = malloc(strlen(fetch_op.result_handle));

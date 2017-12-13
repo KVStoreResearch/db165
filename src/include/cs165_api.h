@@ -46,7 +46,7 @@ SOFTWARE.
 #define BEGIN_BATCH_MESSAGE "batch_queries"
 #define EXECUTE_BATCH_MESSAGE "batch_execute"
 #define MAX_NUM_BATCH_OPERATORS 16
-#define MAX_NUM_SHARED_SCAN 1 
+#define MAX_NUM_SHARED_SCAN 2 
 #define MAX_NUM_THREADS 16
 
 // MILESTONE 3: Index

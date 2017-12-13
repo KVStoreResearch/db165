@@ -46,7 +46,8 @@ SOFTWARE.
 #define BEGIN_BATCH_MESSAGE "batch_queries"
 #define EXECUTE_BATCH_MESSAGE "batch_execute"
 #define MAX_NUM_BATCH_OPERATORS 16
-#define MAX_NUM_SHARED_SCAN 4
+#define MAX_NUM_SHARED_SCAN 1 
+#define MAX_NUM_THREADS 16
 
 // MILESTONE 3: Index
 #define BTREE_IDX_ARG "btree"
@@ -55,7 +56,7 @@ SOFTWARE.
 #define CLUSTERED_IDX_ARG "clustered"
 #define UNCLUSTERED_IDX_ARG "unclustered"
 
-#define DEFAULT_BTREE_NODE_CAPACITY 512 
+#define DEFAULT_BTREE_NODE_CAPACITY 1024 
 
 // MILESTONE 4: Joins
 #define NESTED_LOOP_JOIN_ARG "nested-loop"

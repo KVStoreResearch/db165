@@ -220,11 +220,11 @@ void* run_batch_other(void* other) {
 char* execute_db_batch(BatchOperator* batch) {
 	pthread_t select_threads[MAX_NUM_THREADS];
 	for (int i = 0; i < batch->num_ops_select; i+= MAX_NUM_THREADS) {
-		for (int j = 0; j < MAX_NUM_THREADS; j++) {
+		for (int j = 0; j < MAX_NUM_THREADS && i + j < batch->num_ops_select; j++) {
 			pthread_create(&select_threads[j % MAX_NUM_THREADS], NULL, run_batch_select, 
 					(void*) &batch->batch_select[i + j]);
 		}
-		for (int j = 0; j < MAX_NUM_THREADS; j++) {
+		for (int j = 0; j < MAX_NUM_THREADS && i + j < batch->num_ops_select; j++) {
 			int r = pthread_join(select_threads[j % MAX_NUM_THREADS], NULL);
 			if (r != 0)
 				return "-- Error occurred in batch execution";
@@ -233,11 +233,11 @@ char* execute_db_batch(BatchOperator* batch) {
 
 	pthread_t fetch_threads[batch->num_ops_fetch];
 	for (int i = 0; i < batch->num_ops_fetch; i += MAX_NUM_THREADS) {
-		for (int j = 0; j < MAX_NUM_THREADS; j++) {
+		for (int j = 0; j < MAX_NUM_THREADS && i + j < batch->num_ops_fetch; j++) {
 			pthread_create(&fetch_threads[j % MAX_NUM_THREADS], NULL, run_batch_fetch, 
 					(void*) &batch->batch_fetch[i + j]);
 		}
-		for (int j = 0; j < MAX_NUM_THREADS; j++) {
+		for (int j = 0; j < MAX_NUM_THREADS && i + j < batch->num_ops_fetch; j++) {
 			int r = pthread_join(fetch_threads[j % MAX_NUM_THREADS], NULL);
 			if (r != 0)
 				return "-- Error occurred in batch execution";
@@ -246,11 +246,11 @@ char* execute_db_batch(BatchOperator* batch) {
 
 	pthread_t other_threads[batch->num_ops_other];
 	for (int i = 0; i < batch->num_ops_other; i += MAX_NUM_THREADS) {
-		for (int j = 0; j < MAX_NUM_THREADS; j++) {
+		for (int j = 0; j < MAX_NUM_THREADS && i + j < batch->num_ops_other; j++) {
 			pthread_create(&other_threads[j % MAX_NUM_THREADS], NULL, run_batch_other, 
 					(void*) batch->other_ops[i + j]);
 		}
-		for (int j = 0; j < MAX_NUM_THREADS; j++) {
+		for (int j = 0; j < MAX_NUM_THREADS && i + j < batch->num_ops_other; j++) {
 			int r = pthread_join(other_threads[j % MAX_NUM_THREADS], NULL);
 			if (r != 0)
 				return "-- Error occurred in batch execution";
